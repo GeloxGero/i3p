@@ -1,5 +1,6 @@
 ---
-
+import "../styles/global.css"
+import {Button} from '@heroui/react';
 ---
 
 <html lang="en">
@@ -8,9 +9,12 @@
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
-		<title class="text-center text-red-100">Astro</title>
+		<title >Astro</title>
 	</head>
 	<body>
-		<h1>Astro</h1>
+		<h1 class="text-center text-red-700">Yeye</h1>
+		<Button color="primary" client:visible>My button</Button>
+
+		<h1>YEYE</h1>
 	</body>
 </html>
