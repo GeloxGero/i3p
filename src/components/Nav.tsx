@@ -5,7 +5,7 @@ import {
   NavbarItem,
   Link, 
   Button,
-  User
+  Avatar
 } from "@heroui/react";
 
 export const AcmeLogo = () => {
@@ -28,16 +28,8 @@ export default function Nav() {
             <AcmeLogo />
             <p className="font-bold text-inherit">ACME</p>
           </NavbarBrand>
-          <NavbarContent justify="end">
-            <NavbarItem className="hidden lg:flex">
-              <User
-                avatarProps={{
-                  src: "https://i.pravatar.cc/150?u=a04258114e29026702d",
-                }}
-                description="Product Designer"
-                name="Jane Doe"
-              />
-            </NavbarItem>
+          <NavbarContent justify="end" >
+            <Avatar name="Junior" className="hover:cursor-pointer"/>
           </NavbarContent>
         </Navbar> 
     )
