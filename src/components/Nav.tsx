@@ -1,4 +1,4 @@
-import { Navbar, NavbarBrand, NavbarContent, Avatar } from "@heroui/react";
+import { Navbar, NavbarBrand, NavbarContent, Avatar, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Button } from "@heroui/react";
 
 export const AcmeLogo = () => {
 	return (
@@ -21,7 +21,17 @@ export default function Nav() {
 				<p className="font-bold text-inherit">i3P</p>
 			</NavbarBrand>
 			<NavbarContent justify="end">
-				<Avatar name="Junior" className="hover:cursor-pointer" />
+				<Dropdown>
+				<DropdownTrigger>
+					<Avatar name="Junior" className="hover:cursor-pointer" />
+				</DropdownTrigger>
+				<DropdownMenu aria-label="Static Actions">
+					<DropdownItem key="profile">Profile</DropdownItem>
+					<DropdownItem key="settings">Settings</DropdownItem>
+					<DropdownItem key="logout" className="text-danger" color="danger" href="/login">Logout</DropdownItem>
+				</DropdownMenu>
+				</Dropdown>
+				
 			</NavbarContent>
 		</Navbar>
 	);
