@@ -61,7 +61,7 @@ export const BarChart = () => {
 	};
 
 	return (
-		<div className="flex flex-wrap w-full justify-around gap-6 p-10 bg-gray-50 min-h-screen">
+		<div className="flex flex-wrap gap-6 bg-gray-50 min-h-screen">
 			<Card className="w-full max-w-[500px] shadow-lg border-none">
 				<CardHeader className="flex flex-col items-start px-6 pt-6">
 					<p className="text-tiny uppercase font-bold text-gray-400">
