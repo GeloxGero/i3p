@@ -1,75 +1,81 @@
-import React from "react";
-import {
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-  Chip,
-  User,
-  Tooltip
-} from "@heroui/react";
+import React, { useMemo } from "react";
+import { useStore } from "@nanostores/react";
+import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, ButtonGroup, Button } from "@heroui/react";
+import { $expenseFilter, type ExpenseClass } from "../store/tableStore";
 
-// 1. Define the columns
+// Columns based on your provided specification
 const columns = [
-  { name: "PROJECT ID", uid: "id" },
-  { name: "CLIENT", uid: "client" },
-  { name: "STATUS", uid: "status" },
-  { name: "AMOUNT", uid: "amount" },
-  { name: "DATE", uid: "date" },
+  { name: "EXPENSE CLASS", uid: "class" },
+  { name: "DBM GROUPING", uid: "grouping" },
+  { name: "EXPENSE ITEM", uid: "item" },
+  { name: "QUANTITY", uid: "qty" },
+  { name: "UNIT COST", uid: "unitCost" },
+  { name: "TOTAL AMOUNT", uid: "total" },
+  { name: "MANNER OF RELEASE", uid: "release" },
 ];
 
-// 2. Generate 50 items of mock data
-const rows = Array.from({ length: 50 }).map((_, i) => ({
-  id: `PPA-2026-${100 + i}`,
-  client: `Client Name ${i + 1}`,
-  status: i % 3 === 0 ? "Paid" : i % 3 === 1 ? "Pending" : "Overdue",
-  amount: `$${(Math.random() * 1000 + 100).toFixed(2)}`,
-  date: "2026-01-10",
+// Mock data generator for 50 items
+const rawData = Array.from({ length: 50 }).map((_, i) => ({
+  id: i,
+  class: i % 5 === 0 ? "PS" : "MOOE",
+  grouping: i % 2 === 0 ? "Training & Scholarship" : "Supplies & Materials",
+  item: i % 2 === 0 ? "Snacks for Execom Meeting" : "Supplies for BUG",
+  qty: 1,
+  unitCost: (Math.random() * 10000 + 2000).toFixed(2),
+  total: (Math.random() * 25000 + 5000).toFixed(2),
+  release: "Direct Payment",
 }));
 
-const statusColorMap: Record<string, "success" | "warning" | "danger"> = {
-  Paid: "success",
-  Pending: "warning",
-  Overdue: "danger",
-};
-
 export default function ProjectTable() {
+  const filter = useStore($expenseFilter);
+
+  const filteredData = useMemo(() => {
+    return filter === "All" ? rawData : rawData.filter(d => d.class === filter);
+  }, [filter]);
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-between items-center px-2">
-        <h2 className="text-xl font-bold">Financial Overview</h2>
+      <div className="flex justify-between items-center bg-content1 p-4 rounded-t-xl border-b border-divider">
+        <h2 className="text-xl font-bold">Expenditure Ledger</h2>
+        <ButtonGroup variant="flat" size="sm">
+          {["All", "MOOE", "PS", "CO"].map((f) => (
+            <Button 
+              key={f} 
+              onPress={() => $expenseFilter.set(f as ExpenseClass)}
+              color={filter === f ? "primary" : "default"}
+            >
+              {f}
+            </Button>
+          ))}
+        </ButtonGroup>
       </div>
-      
+
       <Table 
-        aria-label="Example 50 item table"
-        // Prop: Makes the headers stay fixed while the 50 rows scroll
-        isHeaderSticky 
+        isHeaderSticky
+        aria-label="Expense Table"
         classNames={{
-          base: "max-h-[700px] overflow-y-auto",
-          table: "min-w-[600px]",
+          base: "max-h-[600px] overflow-y-auto",
+          th: "bg-default-100 text-default-800",
+          td: "py-3"
         }}
       >
         <TableHeader columns={columns}>
-          {(column) => (
-            <TableColumn key={column.uid} align={column.uid === "amount" ? "end" : "start"}>
-              {column.name}
-            </TableColumn>
-          )}
+          {(col) => <TableColumn key={col.uid}>{col.name}</TableColumn>}
         </TableHeader>
-        <TableBody items={rows}>
+        <TableBody items={filteredData}>
           {(item) => (
-            <TableRow key={item.id}>
-              <TableCell className="font-semibold text-default-600">{item.id}</TableCell>
-              <TableCell>{item.client}</TableCell>
+            <TableRow key={item.id} className="border-b border-divider last:border-none">
+              <TableCell><Chip size="sm" variant="flat">{item.class}</Chip></TableCell>
+              <TableCell className="text-tiny uppercase font-medium">{item.grouping}</TableCell>
+              <TableCell className="text-small">{item.item}</TableCell>
+              <TableCell>{item.qty}</TableCell>
+              <TableCell>₱{item.unitCost}</TableCell>
               <TableCell>
-                <Chip className="capitalize" color={statusColorMap[item.status]} size="sm" variant="flat">
-                  {item.status}
-                </Chip>
+                <div className="bg-success-500 text-white px-2 py-1 rounded text-center font-bold">
+                  ₱{item.total}
+                </div>
               </TableCell>
-              <TableCell className="font-mono">{item.amount}</TableCell>
-              <TableCell className="text-default-400 text-small">{item.date}</TableCell>
+              <TableCell className="text-tiny italic">{item.release}</TableCell>
             </TableRow>
           )}
         </TableBody>
