@@ -1,10 +1,12 @@
 ---
 import MainLayout from "../layouts/MainLayout.astro"
-import {PieChart} from "../components/Charts"
+import {PieChart, BarGraph} from "../components/Charts"
 import { Chart } from "chart.js"
 ---
 
 <MainLayout>
+	
+	<BarGraph client:visible/>
 	<PieChart client:visible/>
 	
 </MainLayout>
