@@ -1,6 +1,6 @@
 ---
 import MainLayout from "../layouts/MainLayout.astro"
-import {PieChart, LineChart1,LineChart2, LineChart3} from "../components/Charts"
+import {PieChart, LineChart1,LineChart2, LineChart3, BarChart} from "../components/Charts"
 ---
 
 <MainLayout>
@@ -10,6 +10,10 @@ import {PieChart, LineChart1,LineChart2, LineChart3} from "../components/Charts"
 		<LineChart3 client:visible/>
 	</div>
 
-	<PieChart client:visible/>
+	<div class="flex gap-1 flex-wrap justify-around mb-5">
+		<PieChart client:visible/>
+		<BarChart client:visible/>
+	</div>
+	
 	
 </MainLayout>

@@ -60,7 +60,23 @@ export const BarChart = () => {
 		},
 	};
 
-	return <Bar data={data} options={options} />;
+	return (
+		<div className="flex flex-wrap w-full justify-around gap-6 p-10 bg-gray-50 min-h-screen">
+			<Card className="w-full max-w-[500px] shadow-lg border-none">
+				<CardHeader className="flex flex-col items-start px-6 pt-6">
+					<p className="text-tiny uppercase font-bold text-gray-400">
+						Statistics
+					</p>
+					<h4 className="text-2xl font-bold">Revenue Growth</h4>
+				</CardHeader>
+				<Divider />
+				<CardBody className="h-[300px] py-4">
+					<Bar data={data} options={options} />
+				</CardBody>
+			</Card>
+		</div>
+	);
+	return;
 };
 
 export function PieChart() {
@@ -86,7 +102,7 @@ export function PieChart() {
 	};
 
 	return (
-		<Card className="w-full shadow-lg">
+		<Card className="shadow-lg">
 			<CardHeader className="flex flex-col items-start px-6 pt-6">
 				<h4 className="text-large font-bold">Project Distribution</h4>
 				<p className="text-small text-default-500">
@@ -95,7 +111,7 @@ export function PieChart() {
 			</CardHeader>
 			<Divider />
 			<CardBody className="py-8 px-4 flex justify-start items-center">
-				<div className="w-full h-[300px]">
+				<div className="h-[300px]">
 					<Pie
 						data={pieChartData}
 						options={{
@@ -291,4 +307,4 @@ export function LineChart3() {
 	);
 }
 
-export default { PieChart, LineChart1, LineChart2, LineChart3 };
+export default { PieChart, LineChart1, LineChart2, LineChart3, BarChart };
