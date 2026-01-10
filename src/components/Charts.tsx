@@ -7,9 +7,10 @@ import {
 	LinearScale,
 	PointElement,
 	LineElement,
+	BarElement,
 	Filler,
 } from "chart.js";
-import { Pie } from "react-chartjs-2";
+import { Pie, Bar } from "react-chartjs-2";
 import { Card, CardHeader, CardBody, Divider, Image } from "@heroui/react";
 import { Line } from "react-chartjs-2";
 
@@ -18,11 +19,49 @@ ChartJS.register(
 	Tooltip,
 	Legend,
 	CategoryScale,
+	BarElement,
 	LinearScale,
 	PointElement,
 	LineElement,
 	Filler
 );
+
+export const BarChart = () => {
+	const data = {
+		labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"],
+		datasets: [
+			{
+				label: "Monthly Profits",
+				data: [65, 59, 80, 81, 56, 55, 40],
+				backgroundColor: "rgba(0, 149, 255, 0.7)",
+				hoverBackgroundColor: "rgba(0, 149, 255, 1)",
+				borderRadius: 6, // Rounds the top of the bars
+				borderSkipped: false,
+			},
+		],
+	};
+
+	const options = {
+		responsive: true,
+		maintainAspectRatio: false,
+		plugins: {
+			legend: { display: false },
+		},
+		scales: {
+			x: {
+				grid: { display: false }, // Clean look: no vertical grid lines
+				border: { display: false },
+			},
+			y: {
+				beginAtZero: true,
+				grid: { color: "#f3f4f6" }, // Light gray horizontal lines
+				border: { display: false },
+			},
+		},
+	};
+
+	return <Bar data={data} options={options} />;
+};
 
 export function PieChart() {
 	const pieChartData = {
@@ -47,7 +86,7 @@ export function PieChart() {
 	};
 
 	return (
-		<Card className="w-full max-w-[400px] shadow-lg">
+		<Card className="w-full shadow-lg">
 			<CardHeader className="flex flex-col items-start px-6 pt-6">
 				<h4 className="text-large font-bold">Project Distribution</h4>
 				<p className="text-small text-default-500">
@@ -55,7 +94,7 @@ export function PieChart() {
 				</p>
 			</CardHeader>
 			<Divider />
-			<CardBody className="py-8 px-4 flex justify-center items-center">
+			<CardBody className="py-8 px-4 flex justify-start items-center">
 				<div className="w-full h-[300px]">
 					<Pie
 						data={pieChartData}
@@ -74,7 +113,7 @@ export function PieChart() {
 	);
 }
 
-export function BarGraph1() {
+export function LineChart1() {
 	const data = {
 		labels: Array(20).fill(""), // Hidden labels for the sparkline effect
 		datasets: [
@@ -116,8 +155,8 @@ export function BarGraph1() {
 	};
 
 	return (
-		<div className="p-8 bg-gray-50">
-			<Card className="max-w-[400px] border-none shadow-sm overflow-hidden">
+		<div className="p-0 bg-gray-50">
+			<Card className="w-full border-none shadow-sm overflow-hidden">
 				<CardBody className="p-0">
 					<div className="p-6 pb-3">
 						<h2 className="text-3xl font-bold text-gray-800">$135,965</h2>
@@ -134,7 +173,7 @@ export function BarGraph1() {
 	);
 }
 
-export function BarGraph2() {
+export function LineChart2() {
 	const data = {
 		labels: Array(20).fill(""), // Hidden labels for the sparkline effect
 		datasets: [
@@ -175,8 +214,8 @@ export function BarGraph2() {
 	};
 
 	return (
-		<div className="p-8 bg-gray-50">
-			<Card className="max-w-[400px] border-none shadow-sm overflow-hidden">
+		<div className="p-0 bg-gray-50">
+			<Card className="w-full border-none shadow-sm overflow-hidden">
 				<CardBody className="p-0">
 					<div className="p-6 pb-3">
 						<h2 className="text-3xl font-bold text-gray-800">$135,965</h2>
@@ -193,7 +232,7 @@ export function BarGraph2() {
 	);
 }
 
-export function BarGraph3() {
+export function LineChart3() {
 	const data = {
 		labels: Array(20).fill(""), // Hidden labels for the sparkline effect
 		datasets: [
@@ -234,8 +273,8 @@ export function BarGraph3() {
 	};
 
 	return (
-		<div className="p-8 bg-gray-50">
-			<Card className="max-w-[400px] border-none shadow-sm overflow-hidden">
+		<div className="p-0 bg-gray-50">
+			<Card className="w-full border-none shadow-sm overflow-hidden">
 				<CardBody className="p-0">
 					<div className="p-6 pb-3">
 						<h2 className="text-3xl font-bold text-gray-800">$135,965</h2>
@@ -252,4 +291,4 @@ export function BarGraph3() {
 	);
 }
 
-export default { PieChart, BarGraph1, BarGraph2, BarGraph3 };
+export default { PieChart, LineChart1, LineChart2, LineChart3 };
