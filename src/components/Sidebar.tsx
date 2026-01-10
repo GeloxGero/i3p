@@ -3,7 +3,7 @@ import { ChartIcon, TableIcon } from "../icons/Icons";
 
 export default function Sidebar() {
   return (
-    <div className="h-screen w-64 p-4 border-r border-divider flex flex-col gap-4">      
+    <aside className="sticky top-0 h-screen w-64 p-4 border-r border-divider flex flex-col gap-4 bg-background overflow-y-auto">
       <Listbox
         aria-label="Main Navigation"
         onAction={(key) => window.location.href = `${key}`}
@@ -20,6 +20,6 @@ export default function Sidebar() {
           PPAs
         </ListboxItem>
       </Listbox>
-    </div>
+    </aside>
   );
 }

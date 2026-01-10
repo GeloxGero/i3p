@@ -13,10 +13,13 @@ import Sidebar from "../components/Sidebar"
 		<title >Dashboard</title>
 	</head>
 	<body>
-        <Nav client:load/>
-		<div class="flex gap-4">
-			<Sidebar/>
-        	<slot/>
-		</div>
-	</body>
+       <Nav client:load />
+        <div class="flex">
+            <aside class="sticky top-[navbar-height] h-[calc(100vh-navbar-height)] overflow-y-auto">
+                <Sidebar client:load />
+            </aside>
+            <main class="flex-1 p-6">
+                <slot />
+            </main>
+        </div>
 </html>

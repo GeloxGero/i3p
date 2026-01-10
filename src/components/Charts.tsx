@@ -1,28 +1,24 @@
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
-import { Card, CardHeader, CardBody, Divider } from "@heroui/react";
+import { Card, CardHeader, CardBody, Divider, Image } from "@heroui/react";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-export const pieChartData = {
-  labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple'],
+export const data = {
+  labels: ['PPA Approved', 'Pending', 'Under Review'],
   datasets: [
     {
-      label: '# of Votes',
-      data: [12, 19, 3, 5, 2],
+      label: 'Projects',
+      data: [15, 8, 5],
       backgroundColor: [
-        'rgba(255, 99, 132, 0.5)',
-        'rgba(54, 162, 235, 0.5)',
-        'rgba(255, 206, 86, 0.5)',
-        'rgba(75, 192, 192, 0.5)',
-        'rgba(153, 102, 255, 0.5)',
+        'rgba(34, 197, 94, 0.6)',  // Success/Green
+        'rgba(245, 158, 11, 0.6)', // Warning/Amber
+        'rgba(59, 130, 246, 0.6)',  // Primary/Blue
       ],
       borderColor: [
-        'rgba(255, 99, 132, 1)',
-        'rgba(54, 162, 235, 1)',
-        'rgba(255, 206, 86, 1)',
-        'rgba(75, 192, 192, 1)',
-        'rgba(153, 102, 255, 1)',
+        'rgba(34, 197, 94, 1)',
+        'rgba(245, 158, 11, 1)',
+        'rgba(59, 130, 246, 1)',
       ],
       borderWidth: 1,
     },
@@ -31,20 +27,29 @@ export const pieChartData = {
 
 export function PieChart(){
     return (
-    <Card className="py-4">
-      <CardHeader className="flex gap-3">
-        <div className="flex flex-col">
-          <p className="text-md">Distribution</p>
-          <p className="text-small text-default-500">Live Analytics</p>
-        </div>
+    <Card className="w-full max-w-[400px] shadow-lg">
+      <CardHeader className="flex flex-col items-start px-6 pt-6">
+        <h4 className="text-large font-bold">Project Distribution</h4>
+        <p className="text-small text-default-500">Current PPA Status Overview</p>
       </CardHeader>
       <Divider/>
-      <CardBody className="overflow-visible py-2">
-        <Pie data={pieChartData} options={{ responsive: true }} />
+      <CardBody className="py-8 px-4 flex justify-center items-center">
+        <div className="w-full h-[300px]">
+          <Pie 
+            data={data} 
+            options={{ 
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  position: 'bottom' as const,
+                }
+              }
+            }} 
+          />
+        </div>
       </CardBody>
     </Card>
   );
-    
 }
 
 
