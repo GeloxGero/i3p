@@ -74,7 +74,7 @@ export function PieChart() {
 	);
 }
 
-export function BarGraph() {
+export function BarGraph1() {
 	const data = {
 		labels: Array(20).fill(""), // Hidden labels for the sparkline effect
 		datasets: [
@@ -119,10 +119,11 @@ export function BarGraph() {
 		<div className="p-8 bg-gray-50">
 			<Card className="max-w-[400px] border-none shadow-sm overflow-hidden">
 				<CardBody className="p-0">
-					<div className="p-6 pb-0">
+					<div className="p-6 pb-3">
 						<h2 className="text-3xl font-bold text-gray-800">$135,965</h2>
-						<p className="text-gray-500 font-medium">Profits</p>
+						<p className="text-gray-500 font-medium">Expenses</p>
 					</div>
+					<Divider />
 
 					<div className="h-32 w-full mt-4">
 						<Line data={data} options={options} />
@@ -133,4 +134,122 @@ export function BarGraph() {
 	);
 }
 
-export default { PieChart, BarGraph };
+export function BarGraph2() {
+	const data = {
+		labels: Array(20).fill(""), // Hidden labels for the sparkline effect
+		datasets: [
+			{
+				fill: true,
+				label: "Revenue",
+				// Values trending upward
+				data: [10, 12, 15, 14, 20, 25, 22, 30, 45, 40, 55, 70, 65, 85, 95, 120],
+				borderColor: "#10b981", // Emerald Green
+				backgroundColor: (context: any) => {
+					const { ctx, chartArea } = context.chart;
+					if (!chartArea) return null;
+					const gradient = ctx.createLinearGradient(
+						0,
+						chartArea.top,
+						0,
+						chartArea.bottom
+					);
+					gradient.addColorStop(0, "rgba(16, 185, 129, 0.2)");
+					gradient.addColorStop(1, "rgba(16, 185, 129, 0)");
+					return gradient;
+				},
+				tension: 0.4,
+				borderWidth: 3,
+				pointRadius: 0,
+			},
+		],
+	};
+
+	const options = {
+		responsive: true,
+		maintainAspectRatio: false,
+		plugins: { legend: { display: false } },
+		scales: {
+			x: { display: false }, // Hide axes for that clean look
+			y: { display: false },
+		},
+	};
+
+	return (
+		<div className="p-8 bg-gray-50">
+			<Card className="max-w-[400px] border-none shadow-sm overflow-hidden">
+				<CardBody className="p-0">
+					<div className="p-6 pb-3">
+						<h2 className="text-3xl font-bold text-gray-800">$135,965</h2>
+						<p className="text-gray-500 font-medium">Expenses</p>
+					</div>
+					<Divider />
+
+					<div className="h-32 w-full mt-4">
+						<Line data={data} options={options} />
+					</div>
+				</CardBody>
+			</Card>
+		</div>
+	);
+}
+
+export function BarGraph3() {
+	const data = {
+		labels: Array(20).fill(""), // Hidden labels for the sparkline effect
+		datasets: [
+			{
+				fill: true,
+				label: "Market Vol",
+				// High variance in numbers
+				data: [80, 20, 90, 10, 70, 30, 85, 45, 20, 95, 40, 10, 100, 30, 50, 80],
+				borderColor: "#f59e0b", // Amber/Orange
+				backgroundColor: (context: any) => {
+					const { ctx, chartArea } = context.chart;
+					if (!chartArea) return null;
+					const gradient = ctx.createLinearGradient(
+						0,
+						chartArea.top,
+						0,
+						chartArea.bottom
+					);
+					gradient.addColorStop(0, "rgba(245, 158, 11, 0.2)");
+					gradient.addColorStop(1, "rgba(245, 158, 11, 0)");
+					return gradient;
+				},
+				tension: 0.5, // Extra "curvy"
+				borderWidth: 3,
+				pointRadius: 0,
+			},
+		],
+	};
+
+	const options = {
+		responsive: true,
+		maintainAspectRatio: false,
+		plugins: { legend: { display: false } },
+		scales: {
+			x: { display: false }, // Hide axes for that clean look
+			y: { display: false },
+		},
+	};
+
+	return (
+		<div className="p-8 bg-gray-50">
+			<Card className="max-w-[400px] border-none shadow-sm overflow-hidden">
+				<CardBody className="p-0">
+					<div className="p-6 pb-3">
+						<h2 className="text-3xl font-bold text-gray-800">$135,965</h2>
+						<p className="text-gray-500 font-medium">Expenses</p>
+					</div>
+					<Divider />
+
+					<div className="h-32 w-full mt-4">
+						<Line data={data} options={options} />
+					</div>
+				</CardBody>
+			</Card>
+		</div>
+	);
+}
+
+export default { PieChart, BarGraph1, BarGraph2, BarGraph3 };

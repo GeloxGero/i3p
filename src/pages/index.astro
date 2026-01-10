@@ -1,12 +1,15 @@
 ---
 import MainLayout from "../layouts/MainLayout.astro"
-import {PieChart, BarGraph} from "../components/Charts"
-import { Chart } from "chart.js"
+import {PieChart, BarGraph1,BarGraph2, BarGraph3} from "../components/Charts"
 ---
 
 <MainLayout>
-	
-	<BarGraph client:visible/>
+	<div class="flex gap-4 flex-wrap justify-around">
+		<BarGraph1 client:visible/>
+		<BarGraph2 client:visible/>
+		<BarGraph3 client:visible/>
+	</div>
+
 	<PieChart client:visible/>
 	
 </MainLayout>
