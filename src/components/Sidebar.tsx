@@ -1,4 +1,5 @@
 import { Listbox, ListboxItem} from "@heroui/react";
+import { ChartIcon, TableIcon } from "../icons/Icons";
 
 export default function Sidebar() {
   return (
@@ -12,14 +13,11 @@ export default function Sidebar() {
           title: "text-medium font-medium",
         }}
       >
-        <ListboxItem key="/" startContent={<h1>Icon</h1>}>
+        <ListboxItem key="/" startContent={<ChartIcon/>}>
           Dashboard
         </ListboxItem>
-        <ListboxItem key="/projects" startContent={<h1>Icon</h1>}>
-          Projects
-        </ListboxItem>
-        <ListboxItem key="/team" startContent={<h1>Icon</h1>}>
-          Team
+        <ListboxItem key="/projects" startContent={<TableIcon/>}>
+          PPAs
         </ListboxItem>
       </Listbox>
     </div>

@@ -23,10 +23,10 @@ export const AcmeLogo = () => {
 
 export default function Nav() {
     return (
-        <Navbar>
+        <Navbar shouldHideOnScroll>
           <NavbarBrand>
             <AcmeLogo />
-            <p className="font-bold text-inherit">ACME</p>
+            <p className="font-bold text-inherit">i3P</p>
           </NavbarBrand>
           <NavbarContent justify="end" >
             <Avatar name="Junior" className="hover:cursor-pointer"/>
