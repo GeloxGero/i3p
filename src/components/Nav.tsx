@@ -1,4 +1,14 @@
-import { Navbar, NavbarBrand, NavbarContent, Avatar, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Button } from "@heroui/react";
+import {
+	Navbar,
+	NavbarBrand,
+	NavbarContent,
+	Avatar,
+	Dropdown,
+	DropdownTrigger,
+	DropdownMenu,
+	DropdownItem,
+	Button,
+} from "@heroui/react";
 
 export const AcmeLogo = () => {
 	return (
@@ -22,16 +32,24 @@ export default function Nav() {
 			</NavbarBrand>
 			<NavbarContent justify="end">
 				<Dropdown>
-				<DropdownTrigger>
-					<Avatar name="Junior" className="hover:cursor-pointer" />
-				</DropdownTrigger>
-				<DropdownMenu aria-label="Static Actions">
-					<DropdownItem key="profile">Profile</DropdownItem>
-					<DropdownItem key="settings">Settings</DropdownItem>
-					<DropdownItem key="logout" className="text-danger" color="danger" href="/login">Logout</DropdownItem>
-				</DropdownMenu>
+					<DropdownTrigger>
+						<Avatar name="Junior" className="hover:cursor-pointer" />
+					</DropdownTrigger>
+					<DropdownMenu aria-label="Static Actions">
+						<DropdownItem key="profile" href="/profile">
+							Profile
+						</DropdownItem>
+						<DropdownItem key="settings">Settings</DropdownItem>
+						<DropdownItem
+							key="logout"
+							className="text-danger"
+							color="danger"
+							href="/login"
+						>
+							Logout
+						</DropdownItem>
+					</DropdownMenu>
 				</Dropdown>
-				
 			</NavbarContent>
 		</Navbar>
 	);
