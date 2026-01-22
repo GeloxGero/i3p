@@ -47,7 +47,7 @@ export default function RegisterForm() {
 
 		try {
 			const response = await fetch(
-				"https://localhost:7000/api/Users/CreateUser",
+				"http://localhost:5109/api/user/CreateUser",
 				{
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
