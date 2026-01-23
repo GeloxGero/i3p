@@ -13,6 +13,7 @@ import {
 	Skeleton,
 } from "@heroui/react";
 import { $expenseFilter, type ExpenseClass } from "../store/tableStore";
+import { $token } from "../store/authStore"; // Import your token
 
 const columns = [
 	{ name: "EXPENSE CLASS", uid: "class" },
@@ -26,31 +27,46 @@ const columns = [
 
 export default function ProjectTable() {
 	const filter = useStore($expenseFilter);
+	const token = useStore($token); // Get the token for authentication
 	const [mounted, setMounted] = useState(false);
 	const [data, setData] = useState<any[]>([]);
 
-	// 1. Only run this in the browser
 	useEffect(() => {
-		const generatedData = Array.from({ length: 50 }).map((_, i) => ({
-			id: i,
-			class: i % 5 === 0 ? "PS" : "MOOE",
-			grouping: i % 2 === 0 ? "Training & Scholarship" : "Supplies & Materials",
-			item: i % 2 === 0 ? "Snacks for Execom Meeting" : "Supplies for BUG",
-			qty: 1,
-			unitCost: (Math.random() * 10000 + 2000).toFixed(2),
-			total: (Math.random() * 25000 + 5000).toFixed(2),
-			release: "Direct Payment",
-		}));
-
-		setData(generatedData);
 		setMounted(true);
-	}, []);
+
+		const loadExpenses = async () => {
+			try {
+				const response = await fetch(
+					"http://localhost:5109/api/expense/GetAll",
+					{
+						headers: {
+							// Include token if your .NET backend has [Authorize] on this endpoint
+							Authorization: `Bearer ${token}`,
+							"Content-Type": "application/json",
+						},
+					}
+				);
+
+				if (response.ok) {
+					const result = await response.json();
+					setData(result); // Set the ACTUAL json result
+				}
+			} catch (error) {
+				console.error("Error loading expenses:", error);
+			}
+		};
+
+		if (mounted) {
+			loadExpenses();
+		}
+	}, [mounted, token]);
 
 	const filteredData = useMemo(() => {
+		// Ensure data is an array before filtering to avoid crashes
+		if (!Array.isArray(data)) return [];
 		return filter === "All" ? data : data.filter((d) => d.class === filter);
 	}, [filter, data]);
 
-	// 2. Return a placeholder or null during Server-Side Rendering
 	if (!mounted) {
 		return (
 			<div className="w-full space-y-5 p-4">
@@ -89,7 +105,12 @@ export default function ProjectTable() {
 				<TableHeader columns={columns}>
 					{(col) => <TableColumn key={col.uid}>{col.name}</TableColumn>}
 				</TableHeader>
-				<TableBody items={filteredData} emptyContent={"No rows to display."}>
+				<TableBody
+					items={filteredData}
+					emptyContent={
+						data.length === 0 ? "Loading expenses..." : "No rows to display."
+					}
+				>
 					{(item) => (
 						<TableRow
 							key={item.id}
@@ -105,10 +126,10 @@ export default function ProjectTable() {
 							</TableCell>
 							<TableCell className="text-small">{item.item}</TableCell>
 							<TableCell>{item.qty}</TableCell>
-							<TableCell>₱{item.unitCost}</TableCell>
+							<TableCell>₱{item.unitCost?.toLocaleString()}</TableCell>
 							<TableCell>
 								<div className="bg-success-500 text-white px-2 py-1 rounded text-center font-bold">
-									₱{item.total}
+									₱{item.total?.toLocaleString()}
 								</div>
 							</TableCell>
 							<TableCell className="text-tiny italic">{item.release}</TableCell>
