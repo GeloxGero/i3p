@@ -1,0 +1,13 @@
+---
+// src/pages/procurement/[id].astro
+import Layout from '../../layouts/Layout.astro';
+import ProcurementList from '../../components/ProcurementList';
+const { id } = Astro.params;
+---
+
+<Layout title={`Procurement Details for #${id}`}>
+  <main class="p-8">
+    <a href="/ledger" class="text-primary mb-4 block">← Back to Ledger</a>
+    <ProcurementList summaryId={id} client:only="react" />
+  </main>
+</Layout>

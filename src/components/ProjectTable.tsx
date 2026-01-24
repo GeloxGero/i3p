@@ -11,58 +11,57 @@ import {
 	ButtonGroup,
 	Button,
 	Skeleton,
+	Tooltip,
 } from "@heroui/react";
 import { $expenseFilter, type ExpenseClass } from "../store/tableStore";
-import { $token } from "../store/authStore"; // Import your token
+import { $token } from "../store/authStore";
 
+// 1. Removed "EXPENSE ITEM" and "QUANTITY" from columns
 const columns = [
 	{ name: "EXPENSE CLASS", uid: "class" },
 	{ name: "DBM GROUPING", uid: "grouping" },
-	{ name: "EXPENSE ITEM", uid: "item" },
-	{ name: "QUANTITY", uid: "qty" },
 	{ name: "UNIT COST", uid: "unitCost" },
 	{ name: "TOTAL AMOUNT", uid: "total" },
 	{ name: "MANNER OF RELEASE", uid: "release" },
+	{ name: "ACTIONS", uid: "actions" },
 ];
 
 export default function ProjectTable() {
 	const filter = useStore($expenseFilter);
-	const token = useStore($token); // Get the token for authentication
+	const token = useStore($token);
 	const [mounted, setMounted] = useState(false);
 	const [data, setData] = useState<any[]>([]);
 
 	useEffect(() => {
 		setMounted(true);
-
 		const loadExpenses = async () => {
 			try {
 				const response = await fetch(
 					"http://localhost:5109/api/expense/GetAll",
 					{
 						headers: {
-							// Include token if your .NET backend has [Authorize] on this endpoint
 							Authorization: `Bearer ${token}`,
 							"Content-Type": "application/json",
 						},
-					}
+					},
 				);
-
 				if (response.ok) {
 					const result = await response.json();
-					setData(result); // Set the ACTUAL json result
+					setData(result);
 				}
 			} catch (error) {
 				console.error("Error loading expenses:", error);
 			}
 		};
 
-		if (mounted) {
-			loadExpenses();
-		}
+		if (mounted) loadExpenses();
 	}, [mounted, token]);
 
+	const handleEdit = (item: any) => console.log("Edit item:", item.id);
+	const handleDelete = (id: number) =>
+		confirm("Delete record?") && console.log("Deleting:", id);
+
 	const filteredData = useMemo(() => {
-		// Ensure data is an array before filtering to avoid crashes
 		if (!Array.isArray(data)) return [];
 		return filter === "All" ? data : data.filter((d) => d.class === filter);
 	}, [filter, data]);
@@ -103,12 +102,19 @@ export default function ProjectTable() {
 				}}
 			>
 				<TableHeader columns={columns}>
-					{(col) => <TableColumn key={col.uid}>{col.name}</TableColumn>}
+					{(col) => (
+						<TableColumn
+							key={col.uid}
+							align={col.uid === "actions" ? "center" : "start"}
+						>
+							{col.name}
+						</TableColumn>
+					)}
 				</TableHeader>
 				<TableBody
 					items={filteredData}
 					emptyContent={
-						data.length === 0 ? "Loading expenses..." : "No rows to display."
+						data.length === 0 ? "Loading..." : "No rows to display."
 					}
 				>
 					{(item) => (
@@ -124,8 +130,7 @@ export default function ProjectTable() {
 							<TableCell className="text-tiny uppercase font-medium">
 								{item.grouping}
 							</TableCell>
-							<TableCell className="text-small">{item.item}</TableCell>
-							<TableCell>{item.qty}</TableCell>
+							{/* item and qty TableCells removed from here */}
 							<TableCell>₱{item.unitCost?.toLocaleString()}</TableCell>
 							<TableCell>
 								<div className="bg-success-500 text-white px-2 py-1 rounded text-center font-bold">
@@ -133,6 +138,31 @@ export default function ProjectTable() {
 								</div>
 							</TableCell>
 							<TableCell className="text-tiny italic">{item.release}</TableCell>
+							<TableCell>
+								<div className="relative flex items-center justify-center gap-2">
+									<Tooltip content="Edit item">
+										<Button
+											isIconOnly
+											size="sm"
+											variant="light"
+											onPress={() => handleEdit(item)}
+										>
+											<span className="text-default-400 text-lg">✎</span>
+										</Button>
+									</Tooltip>
+									<Tooltip color="danger" content="Delete item">
+										<Button
+											isIconOnly
+											size="sm"
+											variant="light"
+											color="danger"
+											onPress={() => handleDelete(item.id)}
+										>
+											<span className="text-danger text-lg">🗑</span>
+										</Button>
+									</Tooltip>
+								</div>
+							</TableCell>
 						</TableRow>
 					)}
 				</TableBody>
