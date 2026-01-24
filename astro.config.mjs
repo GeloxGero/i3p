@@ -1,17 +1,14 @@
 // @ts-check
-import { defineConfig } from 'astro/config';
-import tailwindcss from '@tailwindcss/vite';
-import { heroui } from '@heroui/react';
+import { defineConfig } from "astro/config";
+import tailwindcss from "@tailwindcss/vite";
+import { heroui } from "@heroui/react";
 
-
-import react from '@astrojs/react';
+import react from "@astrojs/react";
 
 export default defineConfig({
-    vite: {
-      plugins: 
-      [tailwindcss()],
-      
-    },
-  integrations: [react()],
-  
+	vite: {
+		plugins: [tailwindcss()],
+	},
+	output: "server",
+	integrations: [react()],
 });
