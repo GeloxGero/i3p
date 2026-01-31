@@ -32,6 +32,8 @@ export default function LoginForm() {
 				// 1. Update Nano Stores (our store handles localStorage syncing)
 				$token.set(data.token);
 				$userProfile.set(data.user);
+				console.log($token);
+				console.log($userProfile);
 
 				// 2. Redirect
 				window.location.href = "/";
