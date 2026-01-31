@@ -69,7 +69,6 @@ export default function ProjectTable() {
 
 	// Grouping logic based on Expense Type
 	const groupedData = useMemo(() => {
-		// Here you would normally filter by month property if your API returns it
 		// For now, we group the existing data by expense_type
 		const groups: Record<string, any[]> = {};
 

@@ -50,7 +50,7 @@ export default function LoginForm() {
 
 	return (
 		<div className="flex justify-center items-center py-10">
-			<Card className="w-full max-w-[400px] shadow-2xl border border-divider">
+			<Card className="w-full max-w-[400px] shadow-2xl border border-divider flex align-center justify-center">
 				<CardHeader className="flex flex-col gap-1 items-start px-8 pt-8">
 					<h1 className="text-2xl font-bold text-foreground">Login</h1>
 					<p className="text-default-500 text-small">
@@ -88,6 +88,8 @@ export default function LoginForm() {
 						</Button>
 					</form>
 				</CardBody>
+				<a className="flex justify-center text-sm text-blue-500 hover:cursor-pointer">Forgot Password?</a>
+				<a className="flex justify-center text-sm text-blue-500 hover:cursor-pointer pb-4" href="/register">Create Account</a>
 			</Card>
 		</div>
 	);

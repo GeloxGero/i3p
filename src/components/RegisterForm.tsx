@@ -59,12 +59,12 @@ export default function RegisterForm() {
 				const data = await response.json();
 				$authError.set(data.message || "Registration failed");
 			} else {
-				alert("Account created successfully!");
 				// Reset form or redirect
 				setName("");
 				setEmail("");
 				setPassword("");
 				setConfirmPassword("");
+				window.location.href = "/login";
 			}
 		} catch (err) {
 			$authError.set("Connection to server failed.");
