@@ -2,6 +2,7 @@
 import "../styles/global.css"
 import Nav from "../components/Nav"
 import Sidebar from "../components/Sidebar"
+const pathname = Astro.url.pathname; 
 ---
 
 <html lang="en">
@@ -16,7 +17,7 @@ import Sidebar from "../components/Sidebar"
        <Nav client:load />
         <div class="flex">
             <aside class="sticky top-[navbar-height] h-[calc(100vh-navbar-height)] overflow-y-auto">
-                <Sidebar client:load />
+                <Sidebar client:load pathname={pathname}/>
             </aside>
             <main class="flex-1 p-6">
                 <slot />

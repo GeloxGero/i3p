@@ -7,3 +7,11 @@ export type FileFilter =
 	| "PPMP"
 	| "School-Plan";
 export const $fileFilter = atom<FileFilter>("School-Plan");
+
+export const $filterOptions = [
+	"Expenditure",
+	"Procurement",
+	"Annual-Plan",
+	"PPMP",
+	"School-Plan",
+];
