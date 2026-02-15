@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useStore } from "@nanostores/react";
 import { $isAuthLoading, $token, $userProfile } from "../store/authStore";
 import {
@@ -14,12 +14,39 @@ export default function LoginForm() {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const isLoading = useStore($isAuthLoading);
+	const [errMessage, setErrMessage] = useState("");
+
+	useEffect(() => {
+		const checkAuth = async () => {
+			const currentToken = $token.get();
+			if (currentToken) {
+				try {
+					const response = await fetch(
+						"http://localhost:5109/api/user/GetProfile",
+						{
+							headers: { Authorization: `Bearer ${currentToken}` },
+						},
+					);
+
+					if (!response.ok) {
+						// Token is invalid or expired
+						$token.set(null);
+						$userProfile.set(null);
+					}
+				} catch (e) {
+					console.error("Auth verification failed", e);
+				}
+			}
+		};
+		checkAuth();
+	}, []);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault(); // Moved to the top to prevent page reload immediately
 		$isAuthLoading.set(true);
 
 		try {
+			console.log({ email, password });
 			const response = await fetch("http://localhost:5109/api/user/Login", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -38,11 +65,11 @@ export default function LoginForm() {
 				// 2. Redirect
 				window.location.href = "/";
 			} else {
-				alert(data.message || "Invalid login credentials");
+				setErrMessage("Invalid Login Credentials");
 			}
 		} catch (error) {
 			console.error("Login Error:", error);
-			alert("Cannot connect to server.");
+			setErrMessage("Cannot connect to server");
 		} finally {
 			$isAuthLoading.set(false);
 		}
@@ -60,6 +87,7 @@ export default function LoginForm() {
 				<Divider className="my-2" />
 				<CardBody className="px-8 pb-8">
 					<form onSubmit={handleSubmit} className="flex flex-col gap-4">
+						<h1>{errMessage}</h1>
 						<Input
 							label="Email"
 							type="email"
@@ -88,8 +116,15 @@ export default function LoginForm() {
 						</Button>
 					</form>
 				</CardBody>
-				<a className="flex justify-center text-sm text-blue-500 hover:cursor-pointer">Forgot Password?</a>
-				<a className="flex justify-center text-sm text-blue-500 hover:cursor-pointer pb-4" href="/register">Create Account</a>
+				<a className="flex justify-center text-sm text-blue-500 hover:cursor-pointer">
+					Forgot Password?
+				</a>
+				<a
+					className="flex justify-center text-sm text-blue-500 hover:cursor-pointer pb-4"
+					href="/register"
+				>
+					Create Account
+				</a>
 			</Card>
 		</div>
 	);
