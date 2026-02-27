@@ -23,12 +23,15 @@ export default function ExpenditureTable() {
 		const fetchExpenditure = async () => {
 			try {
 				// Adjust URL to your .NET Controller endpoint
-				const res = await fetch("http://localhost:5109/api/Expenditure", {
+				const res = await fetch("http://localhost:5109/api/ExpenditureData", {
 					headers: { Authorization: `Bearer ${token}` },
 				});
 				const data = await res.json();
 				// Assuming the API returns a List, we take the first one or specific one
 				setReport(data[0]);
+				console.log(data);
+				console.log("this");
+				console.log(data[0]);
 			} finally {
 				setLoading(false);
 			}
