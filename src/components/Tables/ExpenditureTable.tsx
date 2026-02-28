@@ -127,6 +127,7 @@ export default function ExpenditureTable() {
 				<span className="text-xl">
 					₱{grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
 				</span>
+				d
 			</div>
 		</div>
 	);
