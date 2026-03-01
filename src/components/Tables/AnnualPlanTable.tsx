@@ -9,10 +9,20 @@ import {
 	Select,
 	SelectItem,
 	Spinner,
+	select,
+	Divider,
+	Modal,
+	ModalContent,
+	ModalHeader,
+	ModalBody,
+	ModalFooter,
+	useDisclosure,
 } from "@heroui/react";
 import { useEffect, useState, useRef } from "react";
 import { $token } from "../../store/authStore";
 import { useStore } from "@nanostores/react";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
 export default function AnnualPlanTable() {
 	// 1. State for the list of available years
@@ -24,8 +34,70 @@ export default function AnnualPlanTable() {
 	const [loadingItems, setLoadingItems] = useState(false);
 	const [uploading, setUploading] = useState(false);
 
+	const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
+	const [previewData, setPreviewData] = useState<any[]>([]);
+	const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+
 	const token = useStore($token);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	const TOTAL_COLUMNS = 7;
+
+	// Handle File Selection (Parse, then Open Modal)
+	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (!file) return;
+
+		setFileToUpload(file);
+
+		const reader = new FileReader();
+
+		reader.onload = (e) => {
+			const data = e.target?.result;
+
+			// Read the workbook
+			const workbook = XLSX.read(data, { type: "binary" });
+
+			// Assume the first sheet is the one you want
+			const sheetName = workbook.SheetNames[0];
+			const worksheet = workbook.Sheets[sheetName];
+
+			// Convert to JSON
+			const json = XLSX.utils.sheet_to_json(worksheet);
+			const formattedData = json.map((row: any) => ({
+				itemDescription: row["Description"] || row["Item"], // Adjust keys to match your CSV/Excel headers
+				totalQuantity: row["Qty"] || row["Quantity"],
+				// ... map other fields
+			}));
+			setPreviewData(formattedData);
+			onOpen();
+		};
+
+		reader.readAsBinaryString(file);
+	};
+
+	// The actual API call moves here
+	const confirmUpload = async () => {
+		if (!fileToUpload) return;
+		setUploading(true);
+		const formData = new FormData();
+		formData.append("file", fileToUpload);
+
+		try {
+			await fetch("http://localhost:5109/api/AnnualProcurementPlan/import", {
+				method: "POST",
+				headers: { Authorization: `Bearer ${token}` },
+				body: formData,
+			});
+			await fetchPlanHeaders();
+			alert("Uploaded successfully!");
+			onClose();
+		} catch (e) {
+			alert("Upload failed.");
+		} finally {
+			setUploading(false);
+		}
+	};
 
 	// Fetch only the list of years/plans (No items yet)
 	const fetchPlanHeaders = async () => {
@@ -70,6 +142,7 @@ export default function AnnualPlanTable() {
 		if (selectedId) {
 			fetchItemsForPlan(selectedId);
 		}
+		console.log(selectedPlan);
 	};
 
 	if (loadingHeaders) return <div>Loading available years...</div>;
@@ -92,16 +165,54 @@ export default function AnnualPlanTable() {
 					<input
 						type="file"
 						ref={fileInputRef}
-						onChange={(e) => {
-							/* Keep your existing handleFileImport logic here */
-						}}
+						onChange={handleFileChange}
 						accept=".csv, .xlsx"
 						className="hidden"
 					/>
-					<Button color="primary" onPress={() => fileInputRef.current?.click()}>
-						Import File
+					<Button
+						color="primary"
+						onPress={() => fileInputRef.current?.click()}
+						isLoading={uploading}
+					>
+						{uploading ? "Importing..." : "Import File"}
 					</Button>
 				</div>
+				{/* THE MODAL */}
+				<Modal isOpen={isOpen} onOpenChange={onOpenChange} size="5xl">
+					<ModalContent>
+						<ModalHeader>Confirm Import Data</ModalHeader>
+						<ModalBody className="max-h-[60vh] overflow-y-auto">
+							<Table aria-label="Preview">
+								{/* Use your standard Headers here to preview */}
+								<TableHeader>
+									<TableColumn>ITEM</TableColumn>
+									<TableColumn>QTY</TableColumn>
+									{/* ... add other columns ... */}
+								</TableHeader>
+								<TableBody>
+									{previewData.map((row, idx) => (
+										<TableRow key={idx}>
+											<TableCell>{row.itemDescription}</TableCell>
+											<TableCell>{row.totalQuantity}</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</ModalBody>
+						<ModalFooter>
+							<Button color="danger" onPress={onClose}>
+								Cancel
+							</Button>
+							<Button
+								color="primary"
+								isLoading={uploading}
+								onPress={confirmUpload}
+							>
+								Confirm & Import
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 			</div>
 
 			{/* CONDITIONAL RENDERING */}
@@ -115,7 +226,9 @@ export default function AnnualPlanTable() {
 
 					<Table aria-label="Selected Plan Table">
 						<TableHeader>
+							<TableColumn>No.</TableColumn>
 							<TableColumn>ITEM DESCRIPTION</TableColumn>
+							<TableColumn>SPECIFICATION</TableColumn>
 							<TableColumn>UNIT</TableColumn>
 							<TableColumn>QTY</TableColumn>
 							<TableColumn>PRICE</TableColumn>
@@ -124,7 +237,9 @@ export default function AnnualPlanTable() {
 						<TableBody emptyContent={"No items found."}>
 							{(selectedPlan.items || []).map((item: any) => (
 								<TableRow key={item.id}>
+									<TableCell>{item.no}</TableCell>
 									<TableCell>{item.itemDescription}</TableCell>
+									<TableCell>{item.specification}</TableCell>
 									<TableCell>{item.unitOfMeasure}</TableCell>
 									<TableCell>{item.totalQuantity}</TableCell>
 									<TableCell>₱{item.price?.toLocaleString()}</TableCell>
@@ -133,6 +248,20 @@ export default function AnnualPlanTable() {
 									</TableCell>
 								</TableRow>
 							))}
+
+							{/* Updated Footer Row */}
+							<TableRow className="bg-default-100/50" key="grand-total-row">
+								{/* colSpan={5} means it takes up 5 column slots, + 1 cell for Total = 6 total slots */}
+								<TableCell
+									colSpan={TOTAL_COLUMNS - 1}
+									className="font-bold text-right text-lg"
+								>
+									Grand Total
+								</TableCell>
+								<TableCell className="font-bold text-primary text-lg">
+									₱{(selectedPlan.yearTotal ?? 0).toLocaleString()}
+								</TableCell>
+							</TableRow>
 						</TableBody>
 					</Table>
 				</div>
