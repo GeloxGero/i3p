@@ -21,7 +21,6 @@ import {
 import { useEffect, useState, useRef } from "react";
 import { $token } from "../../store/authStore";
 import { useStore } from "@nanostores/react";
-import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
 export default function AnnualPlanTable() {
@@ -64,15 +63,35 @@ export default function AnnualPlanTable() {
 
 			// Convert to JSON
 			const json = XLSX.utils.sheet_to_json(worksheet);
-			const formattedData = json.map((row: any) => ({
-				itemDescription: row["Description"] || row["Item"], // Adjust keys to match your CSV/Excel headers
-				totalQuantity: row["Qty"] || row["Quantity"],
+			console.log("JSONdata", json);
+			const cleanData = json
+				.filter(
+					(item: any) =>
+						Object.hasOwn(item, "__EMPTY_2") &&
+						Object.hasOwn(item, "__EMPTY_28") &&
+						Object.hasOwn(item, "__EMPTY_7") &&
+						Object.hasOwn(item, "__EMPTY_29") &&
+						Object.hasOwn(item, "__EMPTY_30"),
+				)
+				.slice(1);
+
+			const formattedData = cleanData.map((row: any) => ({
+				no: row["APP-CSE 2025 FORM - Other Items"],
+				itemDescription: row["__EMPTY_2"], // Adjust keys to match your CSV/Excel headers
+				totalQuantity: row["__EMPTY_28"],
+				unitOfMeasure: row["__EMPTY_7"],
+				specification: row["__EMPTY_5"],
+				price: row["__EMPTY_29"],
+				totalAmount: row["__EMPTY_30"],
 				// ... map other fields
 			}));
+
+			console.log("FormattedData: ", formattedData);
 			setPreviewData(formattedData);
 			onOpen();
 		};
 
+		console.log(previewData);
 		reader.readAsBinaryString(file);
 	};
 
@@ -185,15 +204,27 @@ export default function AnnualPlanTable() {
 							<Table aria-label="Preview">
 								{/* Use your standard Headers here to preview */}
 								<TableHeader>
-									<TableColumn>ITEM</TableColumn>
+									<TableColumn>No.</TableColumn>
+									<TableColumn>ITEM DESCRIPTION</TableColumn>
+									<TableColumn>SPECIFICATION</TableColumn>
+									<TableColumn>UNIT</TableColumn>
 									<TableColumn>QTY</TableColumn>
+									<TableColumn>PRICE</TableColumn>
+									<TableColumn>TOTAL</TableColumn>
 									{/* ... add other columns ... */}
 								</TableHeader>
 								<TableBody>
 									{previewData.map((row, idx) => (
-										<TableRow key={idx}>
+										<TableRow key={row.id}>
+											<TableCell>{row.no}</TableCell>
 											<TableCell>{row.itemDescription}</TableCell>
+											<TableCell>{row.specification}</TableCell>
+											<TableCell>{row.unitOfMeasure}</TableCell>
 											<TableCell>{row.totalQuantity}</TableCell>
+											<TableCell>₱{row.price?.toLocaleString()}</TableCell>
+											<TableCell className="font-bold text-primary">
+												₱{row.totalAmount?.toLocaleString()}
+											</TableCell>
 										</TableRow>
 									))}
 								</TableBody>
