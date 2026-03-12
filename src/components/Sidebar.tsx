@@ -1,16 +1,53 @@
-import { Listbox, ListboxItem, Divider } from "@heroui/react";
+import { Listbox, ListboxItem, Divider, Chip } from "@heroui/react";
 import { useStore } from "@nanostores/react";
 import { $fileFilter, $filterOptions } from "../store/filterStore";
 import { ChartIcon, TableIcon } from "../icons/Icons";
+import { useEffect, useState } from "react";
+import { $token } from "../store/authStore";
 
 interface Props {
 	pathname: string;
 }
 
+// Simple link-match icon
+function LinkIcon() {
+	return (
+		<svg
+			aria-hidden
+			fill="none"
+			height="20"
+			width="20"
+			viewBox="0 0 24 24"
+			stroke="currentColor"
+			strokeWidth={1.8}
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+			<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+		</svg>
+	);
+}
+
 export default function Sidebar({ pathname }: Props) {
 	const activeFilter = useStore($fileFilter);
-	// Determine if we are on the projects/PPAs page
+	const token = useStore($token);
 	const isProjectsPage = pathname === "/projects";
+
+	const [pendingCount, setPendingCount] = useState<number | null>(null);
+
+	// Fetch the global pending-review count for the badge
+	useEffect(() => {
+		if (!token) return;
+		fetch("http://localhost:5109/api/PlanCrossReference/pending", {
+			headers: { Authorization: `Bearer ${token}` },
+		})
+			.then((r) => r.json())
+			.then((data: unknown[]) => setPendingCount(data.length))
+			.catch(() => setPendingCount(null));
+	}, [token]);
+
+	const isMatchPage = pathname === "/match";
 
 	return (
 		<aside className="h-screen w-64 p-4 border-r border-divider flex flex-col gap-4 bg-background overflow-y-auto">
@@ -30,9 +67,34 @@ export default function Sidebar({ pathname }: Props) {
 				<ListboxItem key="/projects" startContent={<TableIcon />}>
 					PPAs
 				</ListboxItem>
+
+				{/* Match page nav item with live pending badge */}
+				<ListboxItem
+					key="/match"
+					startContent={<LinkIcon />}
+					endContent={
+						pendingCount !== null && pendingCount > 0 ? (
+							<Chip
+								size="sm"
+								color="warning"
+								variant="solid"
+								className="h-5 min-w-5 text-[10px] font-bold px-1"
+							>
+								{pendingCount > 99 ? "99+" : pendingCount}
+							</Chip>
+						) : undefined
+					}
+					classNames={{
+						base: isMatchPage
+							? "px-3 rounded-lg gap-3 h-12 bg-primary/10 text-primary"
+							: undefined,
+					}}
+				>
+					Match
+				</ListboxItem>
 			</Listbox>
 
-			{/* Conditional Filter List: Only shows when on the PPAs page */}
+			{/* Conditional filter list — PPAs page only */}
 			{isProjectsPage && (
 				<div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1">
 					<Divider className="my-2" />
