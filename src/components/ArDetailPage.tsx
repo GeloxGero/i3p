@@ -290,14 +290,27 @@ function AddItemModal({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function ArDetailPage() {
+interface ArDetailPageProps {
+	arCode?: string | Record<string, string | undefined>;
+}
+
+export default function ArDetailPage({
+	arCode: arCodeProp,
+}: ArDetailPageProps) {
 	const token = useStore($token);
 
-	// Read AR code from URL path: /ar/AR-2026-XXXXXX
-	const arCode =
-		typeof window !== "undefined"
-			? decodeURIComponent(window.location.pathname.split("/ar/")[1] ?? "")
-			: "";
+	// Accept a plain string prop from Astro, or fall back to reading the URL.
+	// Guard against Astro accidentally passing the whole params object.
+	const arCode: string = (() => {
+		if (typeof arCodeProp === "string" && arCodeProp.length > 0) {
+			return decodeURIComponent(arCodeProp);
+		}
+		if (typeof window !== "undefined") {
+			const parts = window.location.pathname.split("/ar/");
+			return decodeURIComponent(parts[parts.length - 1] ?? "");
+		}
+		return "";
+	})();
 
 	const [detail, setDetail] = useState<ArDetail | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -307,11 +320,22 @@ export default function ArDetailPage() {
 
 	const fetchDetail = useCallback(async () => {
 		if (!arCode) return;
+
+		// This removes "/projects/" or anything before the actual AR ID
+		const cleanArCode = arCode.includes("/") ? arCode.split("/").pop() : arCode;
+
+		if (!cleanArCode) return;
 		setLoading(true);
 		try {
-			const res = await fetch(`${API}/api/Ar/${encodeURIComponent(arCode)}`, {
-				headers: { Authorization: `Bearer ${token}` },
-			});
+			const cleanArCode = arCode.includes("/")
+				? arCode.split("/").pop()!
+				: arCode;
+			const res = await fetch(
+				`${API}/api/Ar/${encodeURIComponent(cleanArCode)}`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				},
+			);
 			if (res.status === 404) {
 				setNotFound(true);
 				return;

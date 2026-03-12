@@ -411,7 +411,7 @@ function TemplateDownloadDropdown() {
 					startContent={<span className="text-base">📋</span>}
 					onPress={() =>
 						triggerDownload(
-							`http://localhost:5109/api/Template/SchoolImplementationPlan_Template.xlsx`,
+							`${API}/templates/SchoolImplementationPlan_Template.xlsx`,
 							"SchoolImplementationPlan_Template.xlsx",
 						)
 					}
@@ -424,7 +424,7 @@ function TemplateDownloadDropdown() {
 					startContent={<span className="text-base">📊</span>}
 					onPress={() =>
 						triggerDownload(
-							`http://localhost:5109/api/Template/AnnualProcurementPlan_Template.xlsx`,
+							`${API}/templates/AnnualProcurementPlan_Template.xlsx`,
 							"AnnualProcurementPlan_Template.xlsx",
 						)
 					}
@@ -451,7 +451,7 @@ function ArCodeCell({ row }: { row: SchoolPlanItem }) {
 			}
 		>
 			<a
-				href={`/ar/${encodeURIComponent(row.arCode)}`}
+				href={`/projects/${encodeURIComponent(row.arCode)}`}
 				className="inline-flex items-center gap-1.5 group"
 			>
 				<span className="text-xs font-mono text-primary underline underline-offset-2 group-hover:text-primary-600 transition-colors">
@@ -746,8 +746,51 @@ function MonthTabBar({
 	activeMonth: string;
 	onSelect: (month: string) => void;
 }) {
+	const planTotal = sheets.reduce((sum, s) => sum + s.grandTotal, 0);
+
 	return (
 		<div className="flex flex-wrap gap-2 pb-2 border-b border-default-200">
+			{/* ── Total tab — always first ── */}
+			<button
+				onClick={() => onSelect("TOTAL")}
+				className={[
+					"flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
+					activeMonth === "TOTAL"
+						? "bg-default-800 text-white shadow-md"
+						: "bg-default-100 text-default-600 hover:bg-default-200",
+				].join(" ")}
+			>
+				<svg
+					aria-hidden
+					width="12"
+					height="12"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth={2.5}
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					className="shrink-0"
+				>
+					<line x1="12" y1="1" x2="12" y2="23" />
+					<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+				</svg>
+				Total
+				{planTotal > 0 && (
+					<span
+						className={[
+							"text-xs px-1.5 py-0.5 rounded-full",
+							activeMonth === "TOTAL"
+								? "bg-white/20 text-white"
+								: "bg-default-200 text-default-500",
+						].join(" ")}
+					>
+						₱{(planTotal / 1_000_000).toFixed(2)}M
+					</span>
+				)}
+			</button>
+
+			{/* ── Month tabs ── */}
 			{sheets.map((sheet) => {
 				const isActive = sheet.month === activeMonth;
 				return (
@@ -789,6 +832,119 @@ function MonthTabBar({
 					</button>
 				);
 			})}
+		</div>
+	);
+}
+
+// ─── Total View ─────────────────────────────────────────────────────────────
+
+function TotalView({ sheets }: { sheets: MonthSheet[] }) {
+	const planTotal = sheets.reduce((sum, s) => sum + s.grandTotal, 0);
+	const fmt = (n: number) =>
+		`₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+
+	return (
+		<div className="flex flex-col gap-4">
+			{/* Annual total banner */}
+			<div className="flex items-center justify-between bg-default-800 text-white rounded-2xl px-6 py-5">
+				<div>
+					<p className="text-xs uppercase tracking-widest text-white/50 mb-1">
+						Annual Total Budget
+					</p>
+					<p className="text-3xl font-bold">{fmt(planTotal)}</p>
+				</div>
+				<div className="text-right">
+					<p className="text-xs text-white/50 uppercase tracking-wide mb-1">
+						Months with data
+					</p>
+					<p className="text-2xl font-semibold">
+						{sheets.filter((s) => s.grandTotal > 0).length} / {sheets.length}
+					</p>
+				</div>
+			</div>
+
+			{/* Month-by-month table */}
+			<div className="rounded-xl border border-default-200 overflow-hidden">
+				<table className="w-full text-sm">
+					<thead>
+						<tr className="bg-default-50 border-b border-default-200">
+							<th className="text-left px-4 py-3 font-semibold text-default-600 uppercase text-xs tracking-wide">
+								Month
+							</th>
+							<th className="text-right px-4 py-3 font-semibold text-default-600 uppercase text-xs tracking-wide w-48">
+								Total Budget
+							</th>
+							<th className="px-4 py-3 w-52" />
+						</tr>
+					</thead>
+					<tbody>
+						{sheets.map((sheet, idx) => {
+							const pct =
+								planTotal > 0 ? (sheet.grandTotal / planTotal) * 100 : 0;
+							const hasData = sheet.grandTotal > 0;
+							return (
+								<tr
+									key={sheet.month}
+									className={[
+										"border-b border-default-100 hover:bg-default-50/60 transition-colors",
+										!hasData ? "opacity-40" : "",
+									].join(" ")}
+								>
+									<td className="px-4 py-3">
+										<div className="flex items-center gap-2">
+											<span
+												className={hasData ? "font-medium" : "text-default-400"}
+											>
+												{sheet.month}
+											</span>
+											{sheet.hasSip && (
+												<Chip size="sm" color="success" variant="flat">
+													SiP
+												</Chip>
+											)}
+										</div>
+									</td>
+									<td className="px-4 py-3 text-right font-semibold tabular-nums">
+										{hasData ? (
+											<span className="text-primary">
+												{fmt(sheet.grandTotal)}
+											</span>
+										) : (
+											<span className="text-default-300 font-normal">—</span>
+										)}
+									</td>
+									<td className="px-4 py-3">
+										{hasData && (
+											<div className="flex items-center gap-2">
+												<div className="flex-1 h-1.5 bg-default-100 rounded-full overflow-hidden">
+													<div
+														className="h-full bg-primary rounded-full"
+														style={{ width: `${pct}%` }}
+													/>
+												</div>
+												<span className="text-xs text-default-400 w-10 text-right tabular-nums">
+													{pct.toFixed(1)}%
+												</span>
+											</div>
+										)}
+									</td>
+								</tr>
+							);
+						})}
+					</tbody>
+					<tfoot>
+						<tr className="bg-default-100 border-t-2 border-default-300">
+							<td className="px-4 py-3 font-bold text-default-700 uppercase text-xs tracking-wide">
+								TOTAL
+							</td>
+							<td className="px-4 py-3 text-right font-bold text-lg text-primary tabular-nums">
+								{fmt(planTotal)}
+							</td>
+							<td className="px-4 py-3" />
+						</tr>
+					</tfoot>
+				</table>
+			</div>
 		</div>
 	);
 }
@@ -1081,14 +1237,19 @@ export default function SchoolPlanTable() {
 						onSelect={setActiveMonth}
 					/>
 
-					{activeSheet && <GrandTotalCard sheet={activeSheet} />}
-
-					{activeSheet ? (
-						<MonthTable sheet={activeSheet} visibleCols={visibleCols} />
+					{activeMonth === "TOTAL" ? (
+						<TotalView sheets={selectedPlan.months ?? []} />
 					) : (
-						<div className="text-center text-default-400 p-10">
-							Select a month above.
-						</div>
+						<>
+							{activeSheet && <GrandTotalCard sheet={activeSheet} />}
+							{activeSheet ? (
+								<MonthTable sheet={activeSheet} visibleCols={visibleCols} />
+							) : (
+								<div className="text-center text-default-400 p-10">
+									Select a month above.
+								</div>
+							)}
+						</>
 					)}
 				</div>
 			) : (
