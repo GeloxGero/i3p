@@ -411,7 +411,7 @@ function TemplateDownloadDropdown() {
 					startContent={<span className="text-base">📋</span>}
 					onPress={() =>
 						triggerDownload(
-							`${API}/templates/SchoolImplementationPlan_Template.xlsx`,
+							`http://localhost:5109/api/Template/SchoolImplementationPlan_Template.xlsx`,
 							"SchoolImplementationPlan_Template.xlsx",
 						)
 					}
@@ -424,7 +424,7 @@ function TemplateDownloadDropdown() {
 					startContent={<span className="text-base">📊</span>}
 					onPress={() =>
 						triggerDownload(
-							`${API}/templates/AnnualProcurementPlan_Template.xlsx`,
+							`http://localhost:5109/api/Template/AnnualProcurementPlan_Template.xlsx`,
 							"AnnualProcurementPlan_Template.xlsx",
 						)
 					}
