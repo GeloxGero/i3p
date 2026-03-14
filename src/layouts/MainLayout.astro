@@ -2,25 +2,44 @@
 import "../styles/global.css"
 import Nav from "../components/Nav"
 import Sidebar from "../components/Sidebar"
-const pathname = Astro.url.pathname; 
+const pathname = Astro.url.pathname;
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 		<meta name="generator" content={Astro.generator} />
-		<title >Dashboard</title>
+		<title>i3P Dashboard</title>
 	</head>
 	<body class="relative">
-       <Nav client:load />
-        <div class="flex">
-            <aside class="sticky top-[navbar-height] h-[calc(100vh-navbar-height)] overflow-y-auto">
-                <Sidebar client:load pathname={pathname}/>
-            </aside>
-            <main class="flex-1 p-6">
-                <slot />
-            </main>
-        </div>
+		<Nav client:load />
+		<div class="flex h-[calc(100dvh-64px)]">
+			<!-- Sidebar: hidden on mobile, visible md+ -->
+			<aside class="hidden md:flex sticky top-0 h-full overflow-y-auto shrink-0">
+				<Sidebar client:load pathname={pathname}/>
+			</aside>
+			<main class="flex-1 overflow-y-auto overflow-x-hidden">
+				<slot />
+			</main>
+		</div>
+
+		<!-- Mobile bottom nav — same icons as Sidebar -->
+		<nav class="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t border-divider flex md:hidden">
+			{[
+				{ href: "/",        label: "Dashboard", icon: `<svg fill="none" height="20" width="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>` },
+				{ href: "/projects", label: "PPAs",      icon: `<svg fill="none" height="20" width="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>` },
+				{ href: "/match",   label: "Match",     icon: `<svg fill="none" height="20" width="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>` },
+				{ href: "/profile", label: "Profile",   icon: `<svg fill="none" height="20" width="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>` },
+			].map(item => (
+				<a href={item.href}
+					class={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors ${pathname === item.href ? 'text-primary' : 'text-default-500'}`}>
+					<Fragment set:html={item.icon} />
+					{item.label}
+				</a>
+			))}
+		</nav>
+		<div class="h-[60px] md:hidden" aria-hidden="true"></div>
+	</body>
 </html>

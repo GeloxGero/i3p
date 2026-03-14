@@ -27,6 +27,7 @@ import { useEffect, useState, useRef } from "react";
 import { $token } from "../../store/authStore";
 import { useStore } from "@nanostores/react";
 import * as XLSX from "xlsx";
+import { toast } from "../Toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,8 +79,6 @@ interface SchoolPlan {
 	months: MonthSheet[];
 }
 
-// ─── Column definitions ───────────────────────────────────────────────────────
-
 interface ColDef {
 	uid: string;
 	label: string;
@@ -87,28 +86,30 @@ interface ColDef {
 }
 
 const ALL_COLUMNS: ColDef[] = [
-	{ uid: "kraArea", label: "KRA", className: "w-[160px]" },
+	{ uid: "kraArea", label: "KRA", className: "w-[140px]" },
 	{
 		uid: "specificProgram",
 		label: "Specific Program (SiP)",
-		className: "w-[140px]",
+		className: "w-[120px]",
 	},
 	{ uid: "programActivity", label: "Programs / Projects / Activities" },
 	{ uid: "purpose", label: "Purpose / Objectives" },
 	{ uid: "performanceIndicator", label: "Performance Indicator" },
 	{ uid: "resourceDescription", label: "Resources" },
-	{ uid: "quantity", label: "Qty", className: "text-right w-14" },
+	{ uid: "quantity", label: "Qty", className: "text-right w-12" },
 	{
 		uid: "estimatedCost",
 		label: "Est. Cost (₱)",
-		className: "text-right w-36",
+		className: "text-right w-32",
 	},
 	{ uid: "accountTitle", label: "Account Title" },
-	{ uid: "accountCode", label: "Account Code", className: "w-28" },
-	{ uid: "arCode", label: "AR Code", className: "w-44" },
-	{ uid: "status", label: "Status", className: "w-32" },
+	{ uid: "accountCode", label: "Account Code", className: "w-24" },
+	{ uid: "arCode", label: "AR Code", className: "w-40" },
+	{ uid: "status", label: "Status", className: "w-28" },
 ];
 
+// Mobile shows minimal columns; tablet shows more
+const MOBILE_VISIBLE = new Set(["programActivity", "estimatedCost", "status"]);
 const DEFAULT_VISIBLE = new Set([
 	"kraArea",
 	"specificProgram",
@@ -121,8 +122,6 @@ const DEFAULT_VISIBLE = new Set([
 	"arCode",
 	"status",
 ]);
-
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const MONTH_NAMES = [
 	"January",
@@ -138,21 +137,18 @@ const MONTH_NAMES = [
 	"November",
 	"December",
 ];
-
 const EXPENDITURE_TYPES = [
 	"Regular Expenditure",
 	"Project Related Expenditure",
 	"Repair and Maintenance",
 	"Others",
 ] as const;
-
 const CATEGORY_LABELS: Record<string, string> = {
 	"Regular Expenditure": "Regular",
 	"Project Related Expenditure": "Project",
-	"Repair and Maintenance": "Repair & Maint.",
+	"Repair and Maintenance": "Repair",
 	Others: "Others",
 };
-
 const CATEGORY_COLORS: Record<
 	string,
 	"primary" | "success" | "warning" | "secondary" | "default"
@@ -162,36 +158,30 @@ const CATEGORY_COLORS: Record<
 	"Repair and Maintenance": "warning",
 	Others: "secondary",
 };
-
 const API = "http://localhost:5109";
-
-// ─── Template Layout ──────────────────────────────────────────────────────────
 
 interface SectionDef {
 	category: string;
 	startCol: number;
 }
-
 const TEMPLATE_SECTIONS: SectionDef[] = [
 	{ category: "Regular Expenditure", startCol: 0 },
 	{ category: "Project Related Expenditure", startCol: 11 },
 	{ category: "Repair and Maintenance", startCol: 22 },
 	{ category: "Others", startCol: 33 },
 ];
-
 const OFF_KRA = 0,
 	OFF_SIP = 1,
 	OFF_PPA = 2,
 	OFF_PURPOSE = 3,
-	OFF_PERF_IND = 4;
-const OFF_RES_DESC = 5,
+	OFF_PERF_IND = 4,
+	OFF_RES_DESC = 5,
 	OFF_QTY = 6,
 	OFF_COST = 7,
 	OFF_ACC_TITLE = 8,
 	OFF_ACC_CODE = 9;
-const HEADER_ROW_INDEX = 3;
-const DATA_START_INDEX = 4;
-
+const HEADER_ROW_INDEX = 3,
+	DATA_START_INDEX = 4;
 const REQUIRED_HEADER_KEYWORDS = [
 	"key result area",
 	"specific program",
@@ -200,14 +190,12 @@ const REQUIRED_HEADER_KEYWORDS = [
 	"account",
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function isMonthSheet(name: string) {
-	return MONTH_NAMES.some((m) => name.trim().toLowerCase() === m.toLowerCase());
+function isMonthSheet(n: string) {
+	return MONTH_NAMES.some((m) => n.trim().toLowerCase() === m.toLowerCase());
 }
-function normalizeMonthName(name: string) {
-	const t = name.trim().toLowerCase();
-	return MONTH_NAMES.find((m) => m.toLowerCase() === t) ?? name.trim();
+function normalizeMonthName(n: string) {
+	const t = n.trim().toLowerCase();
+	return MONTH_NAMES.find((m) => m.toLowerCase() === t) ?? n.trim();
 }
 function triggerDownload(url: string, filename: string) {
 	const a = document.createElement("a");
@@ -223,13 +211,14 @@ function parseCost(raw: unknown): number {
 function cellStr(row: unknown[], col: number): string {
 	return String(row[col] ?? "").trim();
 }
-
-// ─── Template Validator ───────────────────────────────────────────────────────
+function fmt(n: number): string {
+	return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+}
 
 function validateSipTemplate(workbook: XLSX.WorkBook): string | null {
 	const monthSheets = workbook.SheetNames.filter(isMonthSheet);
 	if (monthSheets.length === 0)
-		return "No month-named sheets found. Please use the official School Implementation Plan template.";
+		return "No month-named sheets found. Use the official SIP template.";
 	const ws = workbook.Sheets[monthSheets[0]];
 	const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, {
 		header: 1,
@@ -239,18 +228,16 @@ function validateSipTemplate(workbook: XLSX.WorkBook): string | null {
 	const headerJoined = headerRow.map((c) => String(c).toLowerCase()).join(" ");
 	for (const kw of REQUIRED_HEADER_KEYWORDS)
 		if (!headerJoined.includes(kw))
-			return `The uploaded file does not match the official SIP template. Missing header: "${kw}".`;
+			return `Missing header: "${kw}". Use the official SIP template.`;
 	for (const { category, startCol } of TEMPLATE_SECTIONS)
 		if (
 			!String(headerRow[startCol] ?? "")
 				.toLowerCase()
 				.includes("key result area")
 		)
-			return `Template mismatch in section "${category}" at column ${startCol + 1}. Please use the official template.`;
+			return `Template mismatch in "${category}" at column ${startCol + 1}.`;
 	return null;
 }
-
-// ─── Excel Parser ─────────────────────────────────────────────────────────────
 
 function parseSchoolPlanWorkbook(workbook: XLSX.WorkBook): MonthSheet[] {
 	const results: MonthSheet[] = [];
@@ -294,10 +281,9 @@ function parseSchoolPlanWorkbook(workbook: XLSX.WorkBook): MonthSheet[] {
 					purpose: cellStr(row, startCol + OFF_PURPOSE),
 					performanceIndicator: cellStr(row, startCol + OFF_PERF_IND),
 					resourceDescription: cellStr(row, startCol + OFF_RES_DESC),
-					quantity:
-						row[startCol + OFF_QTY] != null
-							? (row[startCol + OFF_QTY] as string | number)
-							: "",
+					quantity: row[startCol + OFF_QTY]
+						? (row[startCol + OFF_QTY] as string | number)
+						: "",
 					estimatedCost,
 					accountTitle: cellStr(row, startCol + OFF_ACC_TITLE),
 					accountCode: cellStr(row, startCol + OFF_ACC_CODE),
@@ -327,115 +313,57 @@ function parseSchoolPlanWorkbook(workbook: XLSX.WorkBook): MonthSheet[] {
 	return results;
 }
 
-// ─── Column Chooser ───────────────────────────────────────────────────────────
+// ─── Mobile Card Row ─────────────────────────────────────────────────────────
 
-function ColumnChooser({
-	visibleCols,
-	onChange,
-}: {
-	visibleCols: Set<string>;
-	onChange: (k: Set<string>) => void;
-}) {
+function MobileItemCard({ item }: { item: SchoolPlanItem }) {
+	const isApproved =
+		item.status === "Approved" ||
+		item.status === (1 as any) ||
+		item.status === "1";
 	return (
-		<Dropdown closeOnSelect={false}>
-			<DropdownTrigger>
-				<Button
-					variant="flat"
+		<div className="border border-default-200 rounded-xl p-3 flex flex-col gap-2 bg-background">
+			<div className="flex items-start justify-between gap-2">
+				<p className="text-sm font-medium leading-snug flex-1">
+					{item.programActivity}
+				</p>
+				<Chip
 					size="sm"
-					endContent={
-						<svg
-							aria-hidden
-							height="1em"
-							fill="none"
-							viewBox="0 0 24 24"
-							width="1em"
-						>
-							<path
-								d="m19.92 8.95-6.52 6.52c-.77.77-2.03.77-2.8 0L4.08 8.95"
-								stroke="currentColor"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeMiterlimit={10}
-								strokeWidth={1.5}
-							/>
-						</svg>
-					}
-				>
-					Columns
-				</Button>
-			</DropdownTrigger>
-			<DropdownMenu
-				disallowEmptySelection
-				aria-label="Toggle columns"
-				selectionMode="multiple"
-				selectedKeys={visibleCols}
-				onSelectionChange={(k) => onChange(new Set(k as Set<string>))}
-			>
-				{ALL_COLUMNS.map((col) => (
-					<DropdownItem key={col.uid}>{col.label}</DropdownItem>
-				))}
-			</DropdownMenu>
-		</Dropdown>
-	);
-}
-
-function TemplateDownloadDropdown() {
-	return (
-		<Dropdown>
-			<DropdownTrigger>
-				<Button
 					variant="flat"
-					size="sm"
-					startContent={
-						<svg
-							aria-hidden
-							width="14"
-							height="14"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth={2}
-							strokeLinecap="round"
-							strokeLinejoin="round"
-						>
-							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-							<polyline points="7 10 12 15 17 10" />
-							<line x1="12" y1="15" x2="12" y2="3" />
-						</svg>
-					}
+					color={isApproved ? "success" : "warning"}
+					className="shrink-0"
 				>
-					Templates
-				</Button>
-			</DropdownTrigger>
-			<DropdownMenu aria-label="Download Excel templates">
-				<DropdownItem
-					key="sip"
-					description="12 monthly sheets · 4 category sections"
-					startContent={<span className="text-base">📋</span>}
-					onPress={() =>
-						triggerDownload(
-							`${API}/api/Template/SchoolImplementationPlan_Template.xlsx`,
-							"SchoolImplementationPlan_Template.xlsx",
-						)
-					}
+					{isApproved ? "Verified" : "Implemented"}
+				</Chip>
+			</div>
+			{item.kraArea && (
+				<p className="text-xs text-default-400">{item.kraArea}</p>
+			)}
+			<div className="flex items-center justify-between">
+				<span className="text-xs text-default-500">
+					{item.accountTitle || "—"}
+				</span>
+				<span className="text-sm font-semibold text-primary">
+					{item.estimatedCost > 0 ? fmt(item.estimatedCost) : "—"}
+				</span>
+			</div>
+			{item.arCode && (
+				<a
+					href={`/projects/${encodeURIComponent(item.arCode)}`}
+					className="text-xs font-mono text-primary underline underline-offset-2"
 				>
-					School Implementation Plan
-				</DropdownItem>
-				<DropdownItem
-					key="app"
-					description="Single sheet · UNSPSC · auto Total Amount"
-					startContent={<span className="text-base">📊</span>}
-					onPress={() =>
-						triggerDownload(
-							`${API}/api/Template/AnnualProcurementPlan_Template.xlsx`,
-							"AnnualProcurementPlan_Template.xlsx",
-						)
-					}
-				>
-					Annual Procurement Plan
-				</DropdownItem>
-			</DropdownMenu>
-		</Dropdown>
+					{item.arCode}
+					{item.isVerified ? (
+						<span className="ml-1 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-success text-white text-[8px] font-bold">
+							✓
+						</span>
+					) : (
+						<span className="ml-1 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-warning/20 text-warning-700 text-[8px] font-bold">
+							!
+						</span>
+					)}
+				</a>
+			)}
+		</div>
 	);
 }
 
@@ -474,86 +402,16 @@ function ArCodeCell({ row }: { row: SchoolPlanItem }) {
 }
 
 function StatusCell({ row }: { row: SchoolPlanItem }) {
-	// status arrives from the API as a number (0 = Implemented, 1 = Approved)
-	// or as a string in local preview data. Normalise both.
-	const raw = row.status;
-	const isApproved = raw === "Approved" || raw === (1 as any) || raw === "1";
-	const label = isApproved ? "Verified" : "Implemented";
 	return (
-		<Chip size="sm" variant="flat" color={isApproved ? "success" : "warning"}>
-			{label}
+		<Chip
+			size="sm"
+			variant="flat"
+			color={row.isVerified ? "success" : "warning"}
+		>
+			{row.isVerified ? "Verified" : "Implemented"}
 		</Chip>
 	);
 }
-
-// ─── Grand Total Card ─────────────────────────────────────────────────────────
-
-function GrandTotalCard({
-	sheet,
-	annualBudget,
-	addItemButton,
-	toolbarButtons,
-}: {
-	sheet: MonthSheet;
-	annualBudget?: number | null;
-	addItemButton?: React.ReactNode;
-	toolbarButtons?: React.ReactNode;
-}) {
-	const monthlyTarget = annualBudget ? annualBudget / 12 : null;
-	const overTarget = monthlyTarget && sheet.grandTotal > monthlyTarget;
-
-	return (
-		<div className="flex flex-col gap-3 bg-primary/10 border border-primary/20 rounded-xl px-6 py-4">
-			{/* Top row: totals */}
-			<div className="flex items-start justify-between gap-4 flex-wrap">
-				<div className="flex flex-col">
-					<span className="text-xs text-default-500 uppercase tracking-wide">
-						Total Budget — {sheet.month}
-					</span>
-					<span className="text-2xl font-bold text-primary">
-						₱
-						{sheet.grandTotal.toLocaleString("en-PH", {
-							minimumFractionDigits: 2,
-						})}
-					</span>
-					{monthlyTarget && (
-						<span
-							className={`text-xs mt-0.5 font-medium ${overTarget ? "text-danger-500" : "text-success-600"}`}
-						>
-							{overTarget ? "▲" : "▼"} vs monthly target ₱
-							{monthlyTarget.toLocaleString("en-PH", {
-								maximumFractionDigits: 0,
-							})}
-						</span>
-					)}
-				</div>
-				<div className="flex gap-4 text-sm text-default-500 flex-wrap">
-					{Object.entries(sheet.subTotals).map(([cat, val]) => (
-						<div key={cat} className="flex flex-col items-end">
-							<span className="text-xs text-default-400">
-								{CATEGORY_LABELS[cat] ?? cat}
-							</span>
-							<span className="font-semibold text-default-700">
-								₱{val.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-							</span>
-						</div>
-					))}
-				</div>
-			</div>
-
-			{/* Bottom row: action toolbar — only shown when props are provided */}
-			{(toolbarButtons || addItemButton) && (
-				<div className="flex items-center gap-2 pt-1 border-t border-primary/15 flex-wrap">
-					{toolbarButtons}
-					<div className="flex-1" />
-					{addItemButton}
-				</div>
-			)}
-		</div>
-	);
-}
-
-// ─── Cell Renderer ────────────────────────────────────────────────────────────
 
 function renderCell(row: SchoolPlanItem, uid: string): React.ReactNode {
 	switch (uid) {
@@ -568,7 +426,9 @@ function renderCell(row: SchoolPlanItem, uid: string): React.ReactNode {
 				<span className="text-xs leading-tight">{row.specificProgram}</span>
 			);
 		case "programActivity":
-			return row.programActivity;
+			return (
+				<span className="text-sm leading-snug">{row.programActivity}</span>
+			);
 		case "purpose":
 			return <span className="text-xs leading-tight">{row.purpose}</span>;
 		case "performanceIndicator":
@@ -586,9 +446,7 @@ function renderCell(row: SchoolPlanItem, uid: string): React.ReactNode {
 		case "estimatedCost":
 			return (
 				<span className="block text-right font-medium">
-					{row.estimatedCost > 0
-						? `₱${row.estimatedCost.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
-						: "—"}
+					{row.estimatedCost > 0 ? fmt(row.estimatedCost) : "—"}
 				</span>
 			);
 		case "accountTitle":
@@ -604,49 +462,139 @@ function renderCell(row: SchoolPlanItem, uid: string): React.ReactNode {
 	}
 }
 
-// ─── MonthTable ───────────────────────────────────────────────────────────────
+// ─── Column Chooser ───────────────────────────────────────────────────────────
+
+function ColumnChooser({
+	visibleCols,
+	onChange,
+}: {
+	visibleCols: Set<string>;
+	onChange: (k: Set<string>) => void;
+}) {
+	return (
+		<Dropdown closeOnSelect={false}>
+			<DropdownTrigger>
+				<Button variant="flat" size="sm">
+					Columns
+				</Button>
+			</DropdownTrigger>
+			<DropdownMenu
+				disallowEmptySelection
+				aria-label="Toggle columns"
+				selectionMode="multiple"
+				selectedKeys={visibleCols}
+				onSelectionChange={(k) => onChange(new Set(k as Set<string>))}
+			>
+				{ALL_COLUMNS.map((col) => (
+					<DropdownItem key={col.uid}>{col.label}</DropdownItem>
+				))}
+			</DropdownMenu>
+		</Dropdown>
+	);
+}
+
+function TemplateDownloadDropdown() {
+	return (
+		<Dropdown>
+			<DropdownTrigger>
+				<Button variant="flat" size="sm">
+					Templates
+				</Button>
+			</DropdownTrigger>
+			<DropdownMenu aria-label="Download Excel templates">
+				<DropdownItem
+					key="sip"
+					onPress={() =>
+						triggerDownload(
+							`${API}/api/Template/SchoolImplementationPlan_Template.xlsx`,
+							"SchoolImplementationPlan_Template.xlsx",
+						)
+					}
+				>
+					School Implementation Plan
+				</DropdownItem>
+				<DropdownItem
+					key="app"
+					onPress={() =>
+						triggerDownload(
+							`${API}/api/Template/AnnualProcurementPlan_Template.xlsx`,
+							"AnnualProcurementPlan_Template.xlsx",
+						)
+					}
+				>
+					Annual Procurement Plan
+				</DropdownItem>
+			</DropdownMenu>
+		</Dropdown>
+	);
+}
+
+// ─── Grand Total Card ─────────────────────────────────────────────────────────
+
+function GrandTotalCard({
+	sheet,
+	annualBudget,
+}: {
+	sheet: MonthSheet;
+	annualBudget?: number | null;
+}) {
+	const monthlyTarget = annualBudget ? annualBudget / 12 : null;
+	const overTarget = monthlyTarget && sheet.grandTotal > monthlyTarget;
+	return (
+		<div className="flex flex-col gap-3 bg-primary/10 border border-primary/20 rounded-xl px-4 sm:px-6 py-4">
+			<div className="flex items-start justify-between gap-3 flex-wrap">
+				<div className="flex flex-col">
+					<span className="text-xs text-default-500 uppercase tracking-wide">
+						Total Budget — {sheet.month}
+					</span>
+					<span className="text-xl sm:text-2xl font-bold text-primary">
+						{fmt(sheet.grandTotal)}
+					</span>
+					{monthlyTarget && (
+						<span
+							className={`text-xs mt-0.5 font-medium ${overTarget ? "text-danger-500" : "text-success-600"}`}
+						>
+							{overTarget ? "▲" : "▼"} vs monthly target {fmt(monthlyTarget)}
+						</span>
+					)}
+				</div>
+				<div className="flex flex-wrap gap-3 text-sm text-default-500">
+					{Object.entries(sheet.subTotals).map(([cat, val]) => (
+						<div key={cat} className="flex flex-col items-end">
+							<span className="text-xs text-default-400">
+								{CATEGORY_LABELS[cat] ?? cat}
+							</span>
+							<span className="font-semibold text-default-700">{fmt(val)}</span>
+						</div>
+					))}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// ─── Month Table ──────────────────────────────────────────────────────────────
 
 function MonthTable({
 	sheet,
 	visibleCols,
+	isMobile,
 }: {
 	sheet: MonthSheet;
 	visibleCols: Set<string>;
+	isMobile: boolean;
 }) {
 	const categories = Array.from(new Set(sheet.items.map((i) => i.category)));
 	const activeCols = ALL_COLUMNS.filter((c) => visibleCols.has(c.uid));
 	return (
-		<div className="flex flex-col gap-6 pb-4">
+		<div className="flex flex-col gap-4 pb-4">
 			{categories.map((cat) => {
 				const catItems = sheet.items.filter((i) => i.category === cat);
 				const subtotal = sheet.subTotals[cat];
-				const tableData: TableRowData[] = [
-					...catItems.map((item, idx) => ({ ...item, _rowKey: `item-${idx}` })),
-					...(subtotal !== undefined
-						? [
-								{
-									_rowKey: "subtotal",
-									_isSubtotal: true as const,
-									_subtotalValue: subtotal,
-									kraArea: "",
-									specificProgram: "",
-									programActivity: "",
-									purpose: "",
-									performanceIndicator: "",
-									resourceDescription: "",
-									quantity: "",
-									estimatedCost: 0,
-									accountTitle: "",
-									accountCode: "",
-									category: cat,
-								},
-							]
-						: []),
-				];
 				return (
 					<div key={cat} className="flex flex-col gap-2">
 						<div className="flex items-center gap-2">
-							<h3 className="text-sm font-semibold text-default-600 uppercase tracking-wide">
+							<h3 className="text-xs sm:text-sm font-semibold text-default-600 uppercase tracking-wide">
 								{cat}
 							</h3>
 							<Chip
@@ -657,58 +605,115 @@ function MonthTable({
 								{CATEGORY_LABELS[cat] ?? cat} · {catItems.length}
 							</Chip>
 						</div>
-						<Table aria-label={`${cat} items`} removeWrapper>
-							<TableHeader>
-								{activeCols.map((col) => (
-									<TableColumn key={col.uid} className={col.className ?? ""}>
-										{col.label}
-									</TableColumn>
+
+						{/* Mobile: card list */}
+						{isMobile ? (
+							<div className="flex flex-col gap-2">
+								{catItems.map((item, idx) => (
+									<MobileItemCard key={idx} item={item} />
 								))}
-							</TableHeader>
-							<TableBody emptyContent="No items." items={tableData}>
-								{(row: TableRowData) =>
-									row._isSubtotal ? (
-										<TableRow
-											key={row._rowKey}
-											className="bg-default-100/60 font-bold"
-										>
-											{activeCols.map((col) => {
-												if (col.uid === "estimatedCost")
-													return (
-														<TableCell
-															key={col.uid}
-															className="text-right font-bold text-primary"
-														>
-															₱
-															{row._subtotalValue!.toLocaleString("en-PH", {
-																minimumFractionDigits: 2,
-															})}
+								{subtotal !== undefined && (
+									<div className="flex items-center justify-between px-3 py-2 bg-default-100/80 rounded-xl">
+										<span className="text-xs font-semibold text-default-500 uppercase tracking-wide">
+											Sub-Total
+										</span>
+										<span className="text-sm font-bold text-primary">
+											{fmt(subtotal)}
+										</span>
+									</div>
+								)}
+								{catItems.length === 0 && (
+									<p className="text-xs text-default-400 px-1">No items.</p>
+								)}
+							</div>
+						) : (
+							// Desktop/tablet: scrollable table
+							<div className="overflow-x-auto -mx-0">
+								<Table aria-label={`${cat} items`} removeWrapper>
+									<TableHeader>
+										{activeCols.map((col) => (
+											<TableColumn
+												key={col.uid}
+												className={col.className ?? ""}
+											>
+												{col.label}
+											</TableColumn>
+										))}
+									</TableHeader>
+									<TableBody
+										emptyContent="No items."
+										items={[
+											...catItems.map(
+												(item, idx) =>
+													({ ...item, _rowKey: `item-${idx}` }) as TableRowData,
+											),
+											...(subtotal !== undefined
+												? [
+														{
+															_rowKey: "subtotal",
+															_isSubtotal: true as const,
+															_subtotalValue: subtotal,
+															kraArea: "",
+															specificProgram: "",
+															programActivity: "",
+															purpose: "",
+															performanceIndicator: "",
+															resourceDescription: "",
+															quantity: "",
+															estimatedCost: 0,
+															accountTitle: "",
+															accountCode: "",
+															category: cat,
+														},
+													]
+												: []),
+										]}
+									>
+										{(row: TableRowData) =>
+											row._isSubtotal ? (
+												<TableRow
+													key={row._rowKey}
+													className="bg-default-100/60 font-bold"
+												>
+													{activeCols.map((col) => {
+														if (col.uid === "estimatedCost")
+															return (
+																<TableCell
+																	key={col.uid}
+																	className="text-right font-bold text-primary"
+																>
+																	₱
+																	{row._subtotalValue!.toLocaleString("en-PH", {
+																		minimumFractionDigits: 2,
+																	})}
+																</TableCell>
+															);
+														if (col.uid === "accountTitle")
+															return (
+																<TableCell
+																	key={col.uid}
+																	className="text-right font-semibold text-default-500"
+																>
+																	Sub-Total
+																</TableCell>
+															);
+														return <TableCell key={col.uid}>{""}</TableCell>;
+													})}
+												</TableRow>
+											) : (
+												<TableRow key={row._rowKey}>
+													{activeCols.map((col) => (
+														<TableCell key={col.uid}>
+															{renderCell(row, col.uid)}
 														</TableCell>
-													);
-												if (col.uid === "accountTitle")
-													return (
-														<TableCell
-															key={col.uid}
-															className="text-right font-semibold text-default-500"
-														>
-															Sub-Total
-														</TableCell>
-													);
-												return <TableCell key={col.uid}>{""}</TableCell>;
-											})}
-										</TableRow>
-									) : (
-										<TableRow key={row._rowKey}>
-											{activeCols.map((col) => (
-												<TableCell key={col.uid}>
-													{renderCell(row, col.uid)}
-												</TableCell>
-											))}
-										</TableRow>
-									)
-								}
-							</TableBody>
-						</Table>
+													))}
+												</TableRow>
+											)
+										}
+									</TableBody>
+								</Table>
+							</div>
+						)}
 					</div>
 				);
 			})}
@@ -716,7 +721,7 @@ function MonthTable({
 	);
 }
 
-// ─── Month Filter Bar (in preview modal) ──────────────────────────────────────
+// ─── Month Filter / Tab Bars ──────────────────────────────────────────────────
 
 function MonthFilterBar({
 	sheets,
@@ -728,8 +733,8 @@ function MonthFilterBar({
 	onSelect: (m: string) => void;
 }) {
 	return (
-		<div className="sticky bottom-0 z-50 bg-background/90 backdrop-blur-md border-t border-default-200 px-6 py-3 shrink-0">
-			<div className="flex flex-wrap gap-2">
+		<div className="sticky bottom-0 z-50 bg-background/90 backdrop-blur-md border-t border-default-200 px-3 sm:px-6 py-2.5 shrink-0">
+			<div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
 				{sheets.map((sheet) => {
 					const isActive = sheet.month === activeMonth;
 					return (
@@ -737,17 +742,17 @@ function MonthFilterBar({
 							key={sheet.month}
 							onClick={() => onSelect(sheet.month)}
 							className={[
-								"flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
+								"flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0",
 								isActive
-									? "bg-primary text-white shadow-md"
+									? "bg-primary text-white shadow"
 									: "bg-default-100 text-default-600 hover:bg-default-200",
 							].join(" ")}
 						>
-							{sheet.month}
+							{sheet.month.slice(0, 3)}
 							{sheet.grandTotal > 0 && (
 								<span
 									className={[
-										"text-xs px-1.5 py-0.5 rounded-full",
+										"text-[10px] px-1 py-0.5 rounded-full",
 										isActive
 											? "bg-white/20 text-white"
 											: "bg-default-200 text-default-500",
@@ -764,8 +769,6 @@ function MonthFilterBar({
 	);
 }
 
-// ─── Month Tab Bar ────────────────────────────────────────────────────────────
-
 function MonthTabBar({
 	sheets,
 	activeMonth,
@@ -777,36 +780,21 @@ function MonthTabBar({
 }) {
 	const planTotal = sheets.reduce((sum, s) => sum + s.grandTotal, 0);
 	return (
-		<div className="flex flex-wrap gap-2 pb-2 border-b border-default-200">
+		<div className="flex gap-1.5 pb-2 border-b border-default-200 overflow-x-auto scrollbar-hide">
 			<button
 				onClick={() => onSelect("TOTAL")}
 				className={[
-					"flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
+					"flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all whitespace-nowrap shrink-0",
 					activeMonth === "TOTAL"
-						? "bg-default-800 text-white shadow-md"
+						? "bg-default-800 text-white shadow"
 						: "bg-default-100 text-default-600 hover:bg-default-200",
 				].join(" ")}
 			>
-				<svg
-					aria-hidden
-					width="12"
-					height="12"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					strokeWidth={2.5}
-					strokeLinecap="round"
-					strokeLinejoin="round"
-					className="shrink-0"
-				>
-					<line x1="12" y1="1" x2="12" y2="23" />
-					<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-				</svg>
 				Total
 				{planTotal > 0 && (
 					<span
 						className={[
-							"text-xs px-1.5 py-0.5 rounded-full",
+							"text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded-full",
 							activeMonth === "TOTAL"
 								? "bg-white/20 text-white"
 								: "bg-default-200 text-default-500",
@@ -823,17 +811,19 @@ function MonthTabBar({
 						key={sheet.month}
 						onClick={() => onSelect(sheet.month)}
 						className={[
-							"flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
+							"flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all whitespace-nowrap shrink-0",
 							isActive
-								? "bg-primary text-white shadow-md"
+								? "bg-primary text-white shadow"
 								: "bg-default-100 text-default-600 hover:bg-default-200",
 						].join(" ")}
 					>
-						{sheet.month}
+						{/* Show abbreviated month on narrow screens */}
+						<span className="sm:hidden">{sheet.month.slice(0, 3)}</span>
+						<span className="hidden sm:inline">{sheet.month}</span>
 						{sheet.grandTotal > 0 && (
 							<span
 								className={[
-									"text-xs px-1.5 py-0.5 rounded-full",
+									"text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded-full",
 									isActive
 										? "bg-white/20 text-white"
 										: "bg-default-200 text-default-500",
@@ -859,9 +849,6 @@ function TotalView({
 	annualBudget?: number | null;
 }) {
 	const planTotal = sheets.reduce((sum, s) => sum + s.grandTotal, 0);
-	const fmt = (n: number) =>
-		`₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
-
 	const budget = annualBudget ?? null;
 	const remaining = budget != null ? budget - planTotal : null;
 	const utilPct =
@@ -869,76 +856,63 @@ function TotalView({
 			? Math.min((planTotal / budget) * 100, 100)
 			: null;
 	const overBudget = budget != null && planTotal > budget;
-
 	return (
 		<div className="flex flex-col gap-4">
-			{/* ── Annual summary header ── */}
-			<div className="flex items-center justify-between bg-default-800 text-white rounded-2xl px-6 py-5 flex-wrap gap-4">
+			<div className="flex items-center justify-between bg-default-800 text-white rounded-2xl px-4 sm:px-6 py-4 sm:py-5 flex-wrap gap-3">
 				<div>
 					<p className="text-xs uppercase tracking-widest text-white/50 mb-1">
 						Annual Total Expenditure
 					</p>
-					<p className="text-3xl font-bold">{fmt(planTotal)}</p>
+					<p className="text-2xl sm:text-3xl font-bold">{fmt(planTotal)}</p>
 				</div>
 				<div className="text-right">
 					<p className="text-xs text-white/50 uppercase tracking-wide mb-1">
 						Months with data
 					</p>
-					<p className="text-2xl font-semibold">
+					<p className="text-xl sm:text-2xl font-semibold">
 						{sheets.filter((s) => s.grandTotal > 0).length} / {sheets.length}
 					</p>
 				</div>
 			</div>
 
-			{/* ── Budget comparison card ── only shown when annualBudget is set ── */}
 			{budget != null && (
 				<div
 					className={[
-						"rounded-2xl border px-6 py-5 flex flex-col gap-4",
+						"rounded-2xl border px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-4",
 						overBudget
 							? "bg-danger-50 border-danger-200"
 							: "bg-primary/5 border-primary/20",
 					].join(" ")}
 				>
-					<div className="flex flex-wrap items-start justify-between gap-4">
-						{/* Expenditure */}
+					<div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
 						<div className="flex flex-col">
 							<span className="text-xs text-default-400 uppercase tracking-wide mb-0.5">
-								Total Expenditure
+								Expenditure
 							</span>
-							<span className="text-2xl font-bold text-primary">
+							<span className="text-lg sm:text-2xl font-bold text-primary">
 								{fmt(planTotal)}
 							</span>
 						</div>
-						{/* Annual Budget */}
-						<div className="flex flex-col text-right">
+						<div className="flex flex-col text-right sm:text-right">
 							<span className="text-xs text-default-400 uppercase tracking-wide mb-0.5">
-								Annual Budget
+								Budget
 							</span>
-							<span className="text-2xl font-bold text-default-700">
+							<span className="text-lg sm:text-2xl font-bold text-default-700">
 								{fmt(budget)}
 							</span>
 						</div>
-						{/* Remaining / Over */}
-						<div
-							className={[
-								"flex flex-col text-right",
-								overBudget ? "" : "",
-							].join("")}
-						>
+						<div className="flex flex-col col-span-2 sm:col-span-1 sm:text-right">
 							<span className="text-xs text-default-400 uppercase tracking-wide mb-0.5">
 								{overBudget ? "Over Budget" : "Remaining"}
 							</span>
 							<span
-								className={`text-2xl font-bold ${overBudget ? "text-danger-600" : "text-success-600"}`}
+								className={`text-lg sm:text-2xl font-bold ${overBudget ? "text-danger-600" : "text-success-600"}`}
 							>
 								{overBudget ? "+" : ""}
 								{fmt(Math.abs(remaining!))}
 							</span>
 						</div>
 					</div>
-
-					{/* Progress bar */}
 					<div className="flex flex-col gap-1.5">
 						<div className="flex justify-between text-xs text-default-500">
 							<span>
@@ -950,35 +924,27 @@ function TotalView({
 								{fmt(planTotal)} of {fmt(budget)}
 							</span>
 						</div>
-						<div className="h-2.5 bg-default-100 rounded-full overflow-hidden">
+						<div className="h-2 bg-default-100 rounded-full overflow-hidden">
 							<div
 								className={`h-full rounded-full transition-all ${overBudget ? "bg-danger-500" : "bg-primary"}`}
 								style={{ width: `${Math.min(utilPct ?? 0, 100)}%` }}
 							/>
 						</div>
-						{overBudget && (
-							<div className="flex justify-end">
-								<span className="text-xs font-medium text-danger-500">
-									{((planTotal / budget) * 100).toFixed(1)}% of budget used
-								</span>
-							</div>
-						)}
 					</div>
 				</div>
 			)}
 
-			{/* ── Month-by-month breakdown ── */}
 			<div className="rounded-xl border border-default-200 overflow-hidden">
 				<table className="w-full text-sm">
 					<thead>
 						<tr className="bg-default-50 border-b border-default-200">
-							<th className="text-left px-4 py-3 font-semibold text-default-600 uppercase text-xs tracking-wide">
+							<th className="text-left px-3 sm:px-4 py-3 font-semibold text-default-600 uppercase text-xs tracking-wide">
 								Month
 							</th>
-							<th className="text-right px-4 py-3 font-semibold text-default-600 uppercase text-xs tracking-wide w-48">
+							<th className="text-right px-3 sm:px-4 py-3 font-semibold text-default-600 uppercase text-xs tracking-wide">
 								Expenditure
 							</th>
-							<th className="px-4 py-3 w-52" />
+							<th className="px-3 sm:px-4 py-3 w-32 sm:w-52 hidden sm:table-cell" />
 						</tr>
 					</thead>
 					<tbody>
@@ -994,14 +960,14 @@ function TotalView({
 										!hasData ? "opacity-40" : "",
 									].join(" ")}
 								>
-									<td className="px-4 py-3">
+									<td className="px-3 sm:px-4 py-2.5">
 										<span
 											className={hasData ? "font-medium" : "text-default-400"}
 										>
 											{sheet.month}
 										</span>
 									</td>
-									<td className="px-4 py-3 text-right font-semibold tabular-nums">
+									<td className="px-3 sm:px-4 py-2.5 text-right font-semibold tabular-nums">
 										{hasData ? (
 											<span className="text-primary">
 												{fmt(sheet.grandTotal)}
@@ -1010,7 +976,7 @@ function TotalView({
 											<span className="text-default-300 font-normal">—</span>
 										)}
 									</td>
-									<td className="px-4 py-3">
+									<td className="px-3 sm:px-4 py-2.5 hidden sm:table-cell">
 										{hasData && (
 											<div className="flex items-center gap-2">
 												<div className="flex-1 h-1.5 bg-default-100 rounded-full overflow-hidden">
@@ -1031,13 +997,13 @@ function TotalView({
 					</tbody>
 					<tfoot>
 						<tr className="bg-default-100 border-t-2 border-default-300">
-							<td className="px-4 py-3 font-bold text-default-700 uppercase text-xs tracking-wide">
+							<td className="px-3 sm:px-4 py-3 font-bold text-default-700 uppercase text-xs tracking-wide">
 								TOTAL
 							</td>
-							<td className="px-4 py-3 text-right font-bold text-lg text-primary tabular-nums">
+							<td className="px-3 sm:px-4 py-3 text-right font-bold text-base sm:text-lg text-primary tabular-nums">
 								{fmt(planTotal)}
 							</td>
-							<td className="px-4 py-3" />
+							<td className="hidden sm:table-cell px-4 py-3" />
 						</tr>
 					</tfoot>
 				</table>
@@ -1061,12 +1027,10 @@ function AddItemModal({
 	onClose: () => void;
 	onAdded: () => void;
 }) {
-	const currentYear = new Date().getFullYear();
-	const monthIndex = MONTH_NAMES.indexOf(activeMonth);
+	const yr = new Date().getFullYear();
+	const mi = MONTH_NAMES.indexOf(activeMonth);
 	const initialDate =
-		monthIndex >= 0
-			? `${currentYear}-${String(monthIndex + 1).padStart(2, "0")}-01`
-			: `${currentYear}-01-01`;
+		mi >= 0 ? `${yr}-${String(mi + 1).padStart(2, "0")}-01` : `${yr}-01-01`;
 	const blank = {
 		date: initialDate,
 		kra: "",
@@ -1085,11 +1049,10 @@ function AddItemModal({
 	const [form, setForm] = useState(blank);
 	const [saving, setSaving] = useState(false);
 	useEffect(() => {
-		const mi = MONTH_NAMES.indexOf(activeMonth);
-		const yr = new Date().getFullYear();
-		const dt =
-			mi >= 0 ? `${yr}-${String(mi + 1).padStart(2, "0")}-01` : `${yr}-01-01`;
-		setForm((f) => ({ ...f, date: dt }));
+		const m = MONTH_NAMES.indexOf(activeMonth);
+		const d =
+			m >= 0 ? `${yr}-${String(m + 1).padStart(2, "0")}-01` : `${yr}-01-01`;
+		setForm((f) => ({ ...f, date: d }));
 	}, [activeMonth, isOpen]);
 	const set = (key: keyof typeof form) => (v: string) =>
 		setForm((f) => ({ ...f, [key]: v }));
@@ -1130,7 +1093,7 @@ function AddItemModal({
 		<Modal
 			isOpen={isOpen}
 			onOpenChange={onClose}
-			size="2xl"
+			size="lg"
 			scrollBehavior="inside"
 		>
 			<ModalContent>
@@ -1141,17 +1104,17 @@ function AddItemModal({
 					</span>
 				</ModalHeader>
 				<ModalBody>
-					<div className="grid grid-cols-2 gap-3">
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 						<Input
 							label="Date"
 							type="date"
 							value={form.date}
 							onValueChange={set("date")}
-							className="col-span-2"
+							className="col-span-1 sm:col-span-2"
 						/>
 						<Select
 							label="Expenditure Type"
-							className="col-span-2"
+							className="col-span-1 sm:col-span-2"
 							selectedKeys={[form.expenditureType]}
 							onSelectionChange={(k) =>
 								set("expenditureType")(Array.from(k)[0] as string)
@@ -1165,7 +1128,7 @@ function AddItemModal({
 							label="KRA"
 							value={form.kra}
 							onValueChange={set("kra")}
-							className="col-span-2"
+							className="col-span-1 sm:col-span-2"
 						/>
 						<Input
 							label="Specific Program (SiP)"
@@ -1179,16 +1142,16 @@ function AddItemModal({
 							isRequired
 						/>
 						<Input
-							label="Purpose / Objectives"
+							label="Purpose"
 							value={form.purpose}
 							onValueChange={set("purpose")}
-							className="col-span-2"
+							className="col-span-1 sm:col-span-2"
 						/>
 						<Input
 							label="Performance Indicator"
 							value={form.indicator}
 							onValueChange={set("indicator")}
-							className="col-span-2"
+							className="col-span-1 sm:col-span-2"
 						/>
 						<Input
 							label="Resources"
@@ -1233,7 +1196,7 @@ function AddItemModal({
 							label="Account Title"
 							value={form.accountTitle}
 							onValueChange={set("accountTitle")}
-							className="col-span-2"
+							className="col-span-1 sm:col-span-2"
 						/>
 						<Input
 							label="Account Code"
@@ -1260,54 +1223,6 @@ function AddItemModal({
 	);
 }
 
-// ─── Dev Seed Banner ──────────────────────────────────────────────────────────
-
-function SeedFakeBanner({
-	planId,
-	items,
-	token,
-	onDone,
-}: {
-	planId: string;
-	items: SchoolPlanItem[];
-	token: string | null;
-	onDone: () => void;
-}) {
-	const [loading, setLoading] = useState(false);
-	const seed = async () => {
-		setLoading(true);
-		try {
-			await fetch(`${API}/api/Ar/seed-fake-links/${items[0].id}`, {
-				method: "POST",
-				headers: { Authorization: `Bearer ${token}` },
-			});
-			onDone();
-		} finally {
-			setLoading(false);
-		}
-	};
-	return (
-		<div className="flex items-center gap-3 px-4 py-2.5 bg-warning-50 border border-warning-200 rounded-xl text-sm">
-			<span className="text-warning-700 font-medium">
-				{items.length} SIP item{items.length !== 1 ? "s" : ""} without an AR
-				code.
-			</span>
-			<Button
-				size="sm"
-				color="warning"
-				variant="flat"
-				isLoading={loading}
-				onPress={seed}
-			>
-				Seed fake APP items (dev)
-			</Button>
-			<span className="text-warning-500 text-xs">
-				Generates 3 test APP items linked to the first unlinked row.
-			</span>
-		</div>
-	);
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SchoolPlanTable() {
@@ -1323,6 +1238,8 @@ export default function SchoolPlanTable() {
 	const [previewActiveMonth, setPreviewActiveMonth] =
 		useState<string>("January");
 	const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+	// Detect mobile breakpoint
+	const [isMobile, setIsMobile] = useState(false);
 
 	const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
 	const {
@@ -1330,9 +1247,20 @@ export default function SchoolPlanTable() {
 		onOpen: openAddItem,
 		onClose: closeAddItem,
 	} = useDisclosure();
-
 	const token = useStore($token);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		const check = () => {
+			const mobile = window.innerWidth < 640;
+			setIsMobile(mobile);
+			// On mobile switch to minimal columns automatically
+			setVisibleCols(mobile ? MOBILE_VISIBLE : DEFAULT_VISIBLE);
+		};
+		check();
+		window.addEventListener("resize", check);
+		return () => window.removeEventListener("resize", check);
+	}, []);
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -1369,14 +1297,18 @@ export default function SchoolPlanTable() {
 				body: formData,
 			});
 			if (!res.ok) {
-				alert(`Import failed: ${await res.text()}`);
+				toast.error("Import failed", await res.text());
 				return;
 			}
+			const data = await res.json();
 			await fetchPlanHeaders();
-			alert("Uploaded successfully!");
+			toast.success(
+				"Import successful",
+				data.message ?? `${data.itemCount} items imported`,
+			);
 			onClose();
 		} catch {
-			alert("Upload failed.");
+			toast.error("Upload failed", "Could not connect to server.");
 		} finally {
 			setUploading(false);
 		}
@@ -1390,11 +1322,7 @@ export default function SchoolPlanTable() {
 			});
 			const data: SchoolPlanHeader[] = await res.json();
 			setPlanHeaders(data);
-			// ── Default: auto-select the most recent plan ──────────────────────
-			if (data.length > 0 && !selectedPlan) {
-				// Headers are already sorted descending by year from the server
-				fetchPlanById(data[0].id);
-			}
+			if (data.length > 0 && !selectedPlan) fetchPlanById(data[0].id);
 		} finally {
 			setLoadingHeaders(false);
 		}
@@ -1422,41 +1350,23 @@ export default function SchoolPlanTable() {
 		const id = Array.from(keys)[0] as string;
 		if (id) fetchPlanById(id);
 	};
-
 	const activeSheet = selectedPlan?.months?.find(
 		(m) => m.month === activeMonth,
 	);
 	const previewSheet = previewSheets.find(
 		(m) => m.month === previewActiveMonth,
 	);
-	const unlinkedItems = (activeSheet?.items ?? []).filter(
-		(i) => !i.arCode && i.id != null,
-	);
 
 	if (loadingHeaders)
-		return <div className="p-8 text-default-500">Loading plans...</div>;
-
-	// Toolbar items that live inside the grand total card (Columns + Templates only)
-	const toolbarButtons = (
-		<>
-			<ColumnChooser visibleCols={visibleCols} onChange={setVisibleCols} />
-			<TemplateDownloadDropdown />
-		</>
-	);
-
-	const addItemButton = selectedPlan ? (
-		<Button color="success" size="sm" onPress={openAddItem}>
-			+ Add Item
-		</Button>
-	) : null;
+		return <div className="p-4 sm:p-8 text-default-500">Loading plans...</div>;
 
 	return (
-		<div className="flex flex-col gap-6">
-			{/* ── Plan selector ── always visible, Import button here so it works before data loads */}
-			<div className="flex justify-between items-center flex-wrap gap-3">
+		<div className="flex flex-col gap-4 sm:gap-6">
+			{/* ── Plan selector + Import (always visible) ── */}
+			<div className="flex items-center gap-2 flex-wrap">
 				<Select
-					label="Select School Implementation Plan Year"
-					className="max-w-xs"
+					label="Plan Year"
+					className="flex-1 min-w-0 max-w-xs"
 					selectedKeys={
 						selectedPlan ? new Set([String(selectedPlan.id)]) : undefined
 					}
@@ -1468,52 +1378,42 @@ export default function SchoolPlanTable() {
 						</SelectItem>
 					))}
 				</Select>
-				<div className="flex items-center gap-2">
-					<input
-						type="file"
-						ref={fileInputRef}
-						onChange={handleFileChange}
-						accept=".xlsx,.xls"
-						className="hidden"
-					/>
-					<Button
-						color="primary"
-						size="sm"
-						onPress={() => fileInputRef.current?.click()}
-						isLoading={uploading}
-					>
-						{uploading ? "Importing..." : "Import Excel"}
-					</Button>
-				</div>
+				<input
+					type="file"
+					ref={fileInputRef}
+					onChange={handleFileChange}
+					accept=".xlsx,.xls"
+					className="hidden"
+				/>
+				<Button
+					color="primary"
+					size="sm"
+					onPress={() => fileInputRef.current?.click()}
+					isLoading={uploading}
+				>
+					{uploading ? "Importing..." : "Import Excel"}
+				</Button>
 			</div>
 
-			{/* ── Validation error banner ── */}
+			{/* ── Validation error ── */}
 			{validationError && (
-				<div className="flex items-start gap-3 px-4 py-3 bg-danger-50 border border-danger-200 rounded-xl text-sm">
-					<span className="text-danger-600 text-lg shrink-0">⚠</span>
-					<div className="flex flex-col gap-1">
+				<div className="flex items-start gap-3 px-3 sm:px-4 py-3 bg-danger-50 border border-danger-200 rounded-xl text-sm">
+					<span className="text-danger-600 shrink-0">⚠</span>
+					<div className="flex flex-col gap-1 flex-1 min-w-0">
 						<span className="font-semibold text-danger-700">
 							Invalid File Format
 						</span>
-						<span className="text-danger-600">{validationError}</span>
+						<span className="text-danger-600 text-xs break-words">
+							{validationError}
+						</span>
 					</div>
 					<button
 						onClick={() => setValidationError(null)}
-						className="ml-auto text-danger-400 hover:text-danger-600 text-lg shrink-0"
+						className="text-danger-400 hover:text-danger-600 shrink-0"
 					>
 						×
 					</button>
 				</div>
-			)}
-
-			{/* ── Dev seed banner ── */}
-			{selectedPlan && unlinkedItems.length > 0 && (
-				<SeedFakeBanner
-					planId={selectedPlan.id}
-					items={unlinkedItems}
-					token={token}
-					onDone={() => fetchPlanById(selectedPlan.id)}
-				/>
 			)}
 
 			{/* ── Preview Modal ── */}
@@ -1524,23 +1424,27 @@ export default function SchoolPlanTable() {
 				scrollBehavior="normal"
 				classNames={{ wrapper: "overflow-hidden" }}
 			>
-				<ModalContent className="flex flex-col h-screen overflow-hidden">
-					<ModalHeader className="flex flex-col gap-1 shrink-0">
+				<ModalContent className="flex flex-col h-[100dvh] overflow-hidden">
+					<ModalHeader className="flex flex-col gap-1 shrink-0 px-4 sm:px-6">
 						<span>Preview Import Data</span>
-						<span className="text-sm font-normal text-default-500">
-							Review all sheets before confirming. Navigate months below.
+						<span className="text-xs sm:text-sm font-normal text-default-500">
+							Review before confirming.
 						</span>
 					</ModalHeader>
-					<ModalBody className="flex-1 overflow-y-auto min-h-0 px-6 py-4">
+					<ModalBody className="flex-1 overflow-y-auto min-h-0 px-3 sm:px-6 py-3">
 						{previewSheets.length > 0 ? (
 							previewSheet ? (
-								<div className="flex flex-col gap-4">
+								<div className="flex flex-col gap-3">
 									<GrandTotalCard sheet={previewSheet} />
-									<MonthTable sheet={previewSheet} visibleCols={visibleCols} />
+									<MonthTable
+										sheet={previewSheet}
+										visibleCols={visibleCols}
+										isMobile={isMobile}
+									/>
 								</div>
 							) : (
 								<div className="text-center text-default-400 p-10">
-									Select a month below to preview.
+									Select a month below.
 								</div>
 							)
 						) : (
@@ -1556,16 +1460,17 @@ export default function SchoolPlanTable() {
 							onSelect={setPreviewActiveMonth}
 						/>
 					)}
-					<ModalFooter className="shrink-0">
-						<Button color="danger" variant="flat" onPress={onClose}>
+					<ModalFooter className="shrink-0 px-4 sm:px-6">
+						<Button color="danger" variant="flat" size="sm" onPress={onClose}>
 							Cancel
 						</Button>
 						<Button
 							color="primary"
+							size="sm"
 							isLoading={uploading}
 							onPress={confirmUpload}
 						>
-							Confirm &amp; Import
+							Confirm & Import
 						</Button>
 					</ModalFooter>
 				</ModalContent>
@@ -1577,12 +1482,14 @@ export default function SchoolPlanTable() {
 					<Spinner label="Loading plan items..." />
 				</div>
 			) : selectedPlan ? (
-				<div className="flex flex-col gap-4">
+				<div className="flex flex-col gap-3 sm:gap-4">
 					<div>
-						<h2 className="text-2xl font-bold">
+						<h2 className="text-lg sm:text-2xl font-bold leading-tight">
 							School Implementation Plan — {selectedPlan.year}
 						</h2>
-						<p className="text-default-500">{selectedPlan.school}</p>
+						<p className="text-xs sm:text-sm text-default-500 mt-0.5">
+							{selectedPlan.school}
+						</p>
 					</div>
 					<MonthTabBar
 						sheets={selectedPlan.months ?? []}
@@ -1596,17 +1503,35 @@ export default function SchoolPlanTable() {
 						/>
 					) : (
 						<>
-							{/* Grand total card with toolbar embedded inside */}
+							{/* Grand Total Card — budget summary only, no toolbar */}
 							{activeSheet && (
 								<GrandTotalCard
 									sheet={activeSheet}
 									annualBudget={selectedPlan.annualBudget}
-									toolbarButtons={toolbarButtons}
-									addItemButton={addItemButton}
 								/>
 							)}
+
+							{/* ── Secondary toolbar — Columns, Templates, Add Item — separate from budget card ── */}
+							{activeSheet && (
+								<div className="flex items-center gap-2 flex-wrap border border-default-200 rounded-xl px-4 py-2.5 bg-default-50/50">
+									<ColumnChooser
+										visibleCols={visibleCols}
+										onChange={setVisibleCols}
+									/>
+									<TemplateDownloadDropdown />
+									<div className="flex-1" />
+									<Button color="success" size="sm" onPress={openAddItem}>
+										+ Add Item
+									</Button>
+								</div>
+							)}
+
 							{activeSheet ? (
-								<MonthTable sheet={activeSheet} visibleCols={visibleCols} />
+								<MonthTable
+									sheet={activeSheet}
+									visibleCols={visibleCols}
+									isMobile={isMobile}
+								/>
 							) : (
 								<div className="text-center text-default-400 p-10">
 									Select a month above.
@@ -1616,9 +1541,8 @@ export default function SchoolPlanTable() {
 					)}
 				</div>
 			) : (
-				<div className="text-gray-500 text-center p-10">
-					Select a year from the dropdown to view the School Implementation
-					Plan.
+				<div className="text-default-500 text-center p-10 text-sm">
+					Select a year to view the School Implementation Plan.
 				</div>
 			)}
 

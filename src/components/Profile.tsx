@@ -16,15 +16,17 @@ export default function Profile() {
 	const [loggingOut, setLoggingOut] = useState(false);
 
 	useEffect(() => {
-		setMounted(true);
-	}, []);
-
-	useEffect(() => {
 		if (!mounted) return;
-		if (!token) {
+
+		// Access localStorage directly if the store feels "empty" on first tick
+		const activeToken = token || localStorage.getItem("token");
+
+		if (!activeToken) {
+			console.log("No token found in store or storage");
 			window.location.href = "/login";
 			return;
 		}
+
 		(async () => {
 			try {
 				const res = await fetch("http://localhost:5109/api/user/GetProfile", {

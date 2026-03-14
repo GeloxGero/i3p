@@ -4,7 +4,7 @@ import { atom } from "nanostores";
 const isBrowser = typeof window !== "undefined";
 
 export const $token = atom<string | null>(
-	isBrowser ? localStorage.getItem("token") : null
+	isBrowser ? localStorage.getItem("token") : null,
 );
 export const $userProfile = atom<any | null>(null);
 export const $isAuthLoading = atom(false);

@@ -1,25 +1,66 @@
-// src/components/Sidebar.tsx
-
 import { Chip, Divider, Listbox, ListboxItem } from "@heroui/react";
 import { useStore } from "@nanostores/react";
 import { useEffect, useState } from "react";
 import { $fileFilter, $filterOptions, NAV_ITEMS } from "../store/filterStore";
 import { $token } from "../store/authStore";
-import { ChartIcon, TableIcon } from "../icons/Icons";
 
 interface Props {
 	pathname: string;
 }
 
-// ─── Nav icons ────────────────────────────────────────────────────────────────
+// ─── Shared icon set — used in both Sidebar (desktop) and bottom nav (mobile) ──
+// Export them so MainLayout.astro can re-use the same SVGs.
 
-function LinkIcon() {
+export function DashboardIcon({ size = 20 }: { size?: number }) {
 	return (
 		<svg
 			aria-hidden
 			fill="none"
-			height="20"
-			width="20"
+			height={size}
+			width={size}
+			viewBox="0 0 24 24"
+			stroke="currentColor"
+			strokeWidth={1.8}
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<rect x="3" y="3" width="7" height="7" rx="1" />
+			<rect x="14" y="3" width="7" height="7" rx="1" />
+			<rect x="3" y="14" width="7" height="7" rx="1" />
+			<rect x="14" y="14" width="7" height="7" rx="1" />
+		</svg>
+	);
+}
+
+export function PPAsIcon({ size = 20 }: { size?: number }) {
+	return (
+		<svg
+			aria-hidden
+			fill="none"
+			height={size}
+			width={size}
+			viewBox="0 0 24 24"
+			stroke="currentColor"
+			strokeWidth={1.8}
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+			<polyline points="14 2 14 8 20 8" />
+			<line x1="16" y1="13" x2="8" y2="13" />
+			<line x1="16" y1="17" x2="8" y2="17" />
+			<polyline points="10 9 9 9 8 9" />
+		</svg>
+	);
+}
+
+export function MatchIcon({ size = 20 }: { size?: number }) {
+	return (
+		<svg
+			aria-hidden
+			fill="none"
+			height={size}
+			width={size}
 			viewBox="0 0 24 24"
 			stroke="currentColor"
 			strokeWidth={1.8}
@@ -32,24 +73,35 @@ function LinkIcon() {
 	);
 }
 
-// ─── Main nav items ───────────────────────────────────────────────────────────
-// Comment out any entry below to hide it from the sidebar navigation.
+export function ProfileIcon({ size = 20 }: { size?: number }) {
+	return (
+		<svg
+			aria-hidden
+			fill="none"
+			height={size}
+			width={size}
+			viewBox="0 0 24 24"
+			stroke="currentColor"
+			strokeWidth={1.8}
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+			<circle cx="12" cy="7" r="4" />
+		</svg>
+	);
+}
 
 const MAIN_NAV = [
-	{ key: "/", label: "Dashboard", icon: <ChartIcon /> },
-	{ key: "/projects", label: "PPAs", icon: <TableIcon /> },
-	{ key: "/match", label: "Match", icon: <LinkIcon /> },
-	// { key: "/reports", label: "Reports", icon: <ReportIcon /> },
+	{ key: "/", label: "Dashboard", icon: <DashboardIcon /> },
+	{ key: "/projects", label: "PPAs", icon: <PPAsIcon /> },
+	{ key: "/match", label: "Match", icon: <MatchIcon /> },
 ] as const;
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Sidebar({ pathname }: Props) {
 	const activeFilter = useStore($fileFilter);
 	const token = useStore($token);
 	const isProjectsPage = pathname === "/projects";
-	const isMatchPage = pathname === "/match";
-
 	const [pendingCount, setPendingCount] = useState<number | null>(null);
 
 	useEffect(() => {
@@ -58,74 +110,52 @@ export default function Sidebar({ pathname }: Props) {
 			headers: { Authorization: `Bearer ${token}` },
 		})
 			.then((r) => r.json())
-			.then((data: unknown[]) => setPendingCount(data.length))
+			.then((d: unknown[]) => setPendingCount(d.length))
 			.catch(() => setPendingCount(null));
 	}, [token]);
 
 	return (
-		<aside className="h-screen w-64 p-4 border-r border-divider flex flex-col gap-4 bg-background overflow-y-auto">
-			{/* ── Main navigation ── */}
+		<aside className="h-screen w-56 p-3 border-r border-divider flex flex-col gap-3 bg-background overflow-y-auto">
 			<Listbox
 				aria-label="Main Navigation"
 				onAction={(key) => (window.location.href = `${key}`)}
-				className="p-0 gap-2"
+				className="p-0 gap-1"
 				itemClasses={{
-					base: "px-3 rounded-lg gap-3 h-12 data-[hover=true]:bg-default-100",
-					title: "text-medium font-medium",
+					base: "px-3 rounded-lg gap-3 h-11 data-[hover=true]:bg-default-100",
+					title: "text-sm font-medium",
 				}}
 			>
-				{
-					//Match Logic Here
-					MAIN_NAV.map(({ key, label, icon }) => (
-						<ListboxItem
-							key={key}
-							startContent={icon}
-							endContent={
-								// Match badge
-								key === "/match" &&
-								pendingCount !== null &&
-								pendingCount > 0 ? (
-									// <Chip
-									// 	size="sm"
-									// 	color="warning"
-									// 	variant="solid"
-									// 	className="h-5 min-w-5 text-[10px] font-bold px-1"
-									// >
-									// 	{pendingCount > 99 ? "99+" : pendingCount}
-									// </Chip>
-
-									//this is temporary and should be removed and above code to be
-									//unncommented
-									<span></span>
-								) : undefined
-							}
-							classNames={
-								{
-									// base:
-									// 	key === "/match" && isMatchPage
-									// 		? "px-3 rounded-lg gap-3 h-12 bg-primary/10 text-primary"
-									// 		: undefined,
-									//this is temporary and should be removed and above code to be
-									//unncommented
-								}
-							}
-						>
-							{label}
-						</ListboxItem>
-					))
-				}
+				{MAIN_NAV.map(({ key, label, icon }) => (
+					<ListboxItem
+						key={key}
+						startContent={icon}
+						classNames={{
+							base: pathname === key ? "bg-default-100" : undefined,
+						}}
+						endContent={
+							key === "/match" && pendingCount && pendingCount > 0 ? (
+								<Chip
+									size="sm"
+									color="warning"
+									variant="solid"
+									className="h-5 min-w-5 text-[10px] font-bold px-1"
+								>
+									{pendingCount > 99 ? "99+" : pendingCount}
+								</Chip>
+							) : undefined
+						}
+					>
+						{label}
+					</ListboxItem>
+				))}
 			</Listbox>
 
-			{/* ── PPAs sub-filters (shown only on /projects) ── */}
 			{isProjectsPage && (
 				<div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1">
-					<Divider className="my-2" />
-					<p className="px-3 text-tiny font-bold text-default-400 uppercase">
+					<Divider className="my-1" />
+					<p className="px-3 text-[10px] font-bold text-default-400 uppercase tracking-wider">
 						Filters
 					</p>
-
-					{/* $filterOptions is derived from NAV_ITEMS in filterStore.ts.
-              Comment items out there to remove them from both here and ProjectTable. */}
 					<Listbox
 						aria-label="File Filters"
 						variant="flat"
@@ -133,14 +163,14 @@ export default function Sidebar({ pathname }: Props) {
 						selectionMode="single"
 						selectedKeys={[activeFilter]}
 						onSelectionChange={(keys) => {
-							const selected = Array.from(keys)[0];
-							$fileFilter.set(selected as string);
+							const s = Array.from(keys)[0];
+							$fileFilter.set(s as string);
 						}}
 					>
 						{($filterOptions as string[]).map((key) => {
 							const label = NAV_ITEMS.find((n) => n.key === key)?.label ?? key;
 							return (
-								<ListboxItem key={key} className="h-10">
+								<ListboxItem key={key} className="h-9 text-sm">
 									{label}
 								</ListboxItem>
 							);
