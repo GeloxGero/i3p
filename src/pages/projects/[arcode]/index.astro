@@ -1,9 +1,10 @@
 ---
 import MainLayout from "../../../layouts/MainLayout.astro"
 import ArDetailPage from "../../../components/ArDetailPage"
+
+const { arCode } = Astro.params
 ---
- 
+
 <MainLayout>
-    <ArDetailPage client:load />
+    <ArDetailPage arCode={arCode} client:load />
 </MainLayout>
- 

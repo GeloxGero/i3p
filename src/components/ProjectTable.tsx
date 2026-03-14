@@ -29,11 +29,11 @@ export default function ProjectTable() {
 	}, []);
 
 	const tableMap: Record<string, React.ComponentType<any>> = {
-		"Annual-Plan": AnnualPlanTable,
-		Expenditure: ExpenditureTable,
-		PPMP: PPMPTable,
-		Procurement: ProcurementTable,
-		"School-Plan": SchoolPlanTable,
+		"Item Procurement List": AnnualPlanTable,
+		// Expenditure: ExpenditureTable,
+		// PPMP: PPMPTable,
+		// Procurement: ProcurementTable,
+		"General Expenditure Summary": SchoolPlanTable,
 	};
 
 	const SelectedTable = tableMap[filter] || SchoolPlanTable;

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useStore } from "@nanostores/react";
 import {
 	Button,
@@ -60,20 +60,268 @@ function fmt(n: number | null | undefined) {
 	return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 }
 
+// ─── Image Viewer Modal ───────────────────────────────────────────────────────
+
+function ImageViewerModal({
+	item,
+	isOpen,
+	onClose,
+	token,
+	onVerified,
+}: {
+	item: ArAppItem | null;
+	isOpen: boolean;
+	onClose: () => void;
+	token: string | null;
+	onVerified: () => void;
+}) {
+	const [verifying, setVerifying] = useState(false);
+	const [imgError, setImgError] = useState(false);
+
+	// Reset error state when item changes
+	useEffect(() => {
+		setImgError(false);
+	}, [item]);
+
+	if (!item) return null;
+
+	const photoUrl = item.photoPath ? `${API}/${item.photoPath}` : null;
+	// Build a direct download URL — append ?download=1 so the server sends
+	// Content-Disposition: attachment if it supports it, otherwise it just opens.
+	const downloadUrl = photoUrl;
+	const filename = item.photoPath?.split("/").pop() ?? "receipt";
+
+	const verify = async () => {
+		setVerifying(true);
+		try {
+			await fetch(`${API}/api/Ar/verify-photo/${item.id}`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({ verifiedBy: "admin" }),
+			});
+			onVerified();
+			onClose();
+		} finally {
+			setVerifying(false);
+		}
+	};
+
+	const downloadFile = () => {
+		if (!downloadUrl) return;
+		const a = document.createElement("a");
+		a.href = downloadUrl;
+		a.download = filename;
+		a.target = "_blank";
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+	};
+
+	return (
+		<Modal
+			isOpen={isOpen}
+			onOpenChange={onClose}
+			size="3xl"
+			scrollBehavior="inside"
+		>
+			<ModalContent>
+				<ModalHeader className="flex flex-col gap-0.5">
+					<div className="flex items-center gap-2">
+						<span>Photo Evidence</span>
+						{item.isPhotoVerified && (
+							<Chip size="sm" color="success" variant="flat">
+								Verified ✓
+							</Chip>
+						)}
+					</div>
+					<span className="text-sm font-normal text-default-500 truncate">
+						{item.itemDescription ?? "APP Item"}
+					</span>
+				</ModalHeader>
+
+				<ModalBody className="px-6 pb-2">
+					{/* ── Image / PDF display ── */}
+					{!photoUrl ? (
+						<div className="flex flex-col items-center justify-center h-64 bg-default-50 rounded-xl border border-dashed border-default-200 text-default-400">
+							<svg
+								aria-hidden
+								width="40"
+								height="40"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth={1.5}
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								className="mb-3 opacity-40"
+							>
+								<rect x="3" y="3" width="18" height="18" rx="2" />
+								<circle cx="8.5" cy="8.5" r="1.5" />
+								<polyline points="21 15 16 10 5 21" />
+							</svg>
+							<span className="text-sm">No photo uploaded</span>
+						</div>
+					) : item.photoPath?.toLowerCase().endsWith(".pdf") ? (
+						// PDF — embed viewer
+						<div className="w-full h-[500px] rounded-xl overflow-hidden border border-default-200">
+							<iframe
+								src={photoUrl}
+								className="w-full h-full"
+								title="Receipt PDF"
+							/>
+						</div>
+					) : imgError ? (
+						<div className="flex flex-col items-center justify-center h-64 bg-danger-50 rounded-xl border border-danger-200 text-danger-500 gap-2">
+							<span className="text-sm font-medium">Could not load image</span>
+							<Button
+								size="sm"
+								variant="flat"
+								color="primary"
+								onPress={downloadFile}
+							>
+								Download instead
+							</Button>
+						</div>
+					) : (
+						// Image — show full-size with zoom-on-hover feel
+						<div className="relative w-full rounded-xl overflow-hidden border border-default-200 bg-default-50 flex items-center justify-center min-h-[300px]">
+							<img
+								src={photoUrl}
+								alt={`Receipt for ${item.itemDescription}`}
+								className="max-w-full max-h-[520px] object-contain"
+								onError={() => setImgError(true)}
+							/>
+							{/* Overlay download button */}
+							<a
+								href={photoUrl}
+								download={filename}
+								target="_blank"
+								rel="noreferrer"
+								className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/60 text-white text-xs font-medium hover:bg-black/80 transition-colors backdrop-blur-sm"
+							>
+								<svg
+									aria-hidden
+									width="13"
+									height="13"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth={2}
+									strokeLinecap="round"
+									strokeLinejoin="round"
+								>
+									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+									<polyline points="7 10 12 15 17 10" />
+									<line x1="12" y1="15" x2="12" y2="3" />
+								</svg>
+								Download
+							</a>
+						</div>
+					)}
+
+					{/* ── Item details ── */}
+					<div className="grid grid-cols-2 gap-3 mt-4 text-sm">
+						<div className="bg-default-50 rounded-xl p-3 flex flex-col gap-0.5">
+							<span className="text-xs text-default-400 uppercase tracking-wide">
+								Unit Price
+							</span>
+							<span className="font-semibold">{fmt(item.price)}</span>
+						</div>
+						<div className="bg-default-50 rounded-xl p-3 flex flex-col gap-0.5">
+							<span className="text-xs text-default-400 uppercase tracking-wide">
+								Total Amount
+							</span>
+							<span className="font-semibold text-primary">
+								{fmt(item.totalAmount)}
+							</span>
+						</div>
+						<div className="bg-default-50 rounded-xl p-3 flex flex-col gap-0.5">
+							<span className="text-xs text-default-400 uppercase tracking-wide">
+								Quantity
+							</span>
+							<span className="font-semibold">
+								{item.totalQuantity ?? "—"} {item.unitOfMeasure ?? ""}
+							</span>
+						</div>
+						<div className="bg-default-50 rounded-xl p-3 flex flex-col gap-0.5">
+							<span className="text-xs text-default-400 uppercase tracking-wide">
+								Verification
+							</span>
+							{item.isPhotoVerified ? (
+								<span className="text-success-600 font-semibold text-xs">
+									✓ Verified by {item.verifiedBy ?? "admin"}
+									{item.verifiedAt &&
+										` on ${new Date(item.verifiedAt).toLocaleDateString("en-PH")}`}
+								</span>
+							) : (
+								<span className="text-warning-600 font-semibold text-xs">
+									Pending review
+								</span>
+							)}
+						</div>
+					</div>
+				</ModalBody>
+
+				<ModalFooter>
+					{/* Download button always available */}
+					{photoUrl && (
+						<Button
+							variant="flat"
+							onPress={downloadFile}
+							startContent={
+								<svg
+									aria-hidden
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth={2}
+									strokeLinecap="round"
+									strokeLinejoin="round"
+								>
+									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+									<polyline points="7 10 12 15 17 10" />
+									<line x1="12" y1="15" x2="12" y2="3" />
+								</svg>
+							}
+						>
+							Download
+						</Button>
+					)}
+					<Button variant="flat" onPress={onClose}>
+						Close
+					</Button>
+					{/* Verify button — only shown when photo exists and not yet verified */}
+					{photoUrl && !item.isPhotoVerified && (
+						<Button color="success" isLoading={verifying} onPress={verify}>
+							✓ Mark as Verified
+						</Button>
+					)}
+				</ModalFooter>
+			</ModalContent>
+		</Modal>
+	);
+}
+
 // ─── Photo Cell ───────────────────────────────────────────────────────────────
 
 function PhotoCell({
 	item,
 	token,
 	onRefresh,
+	onViewPhoto,
 }: {
 	item: ArAppItem;
 	token: string | null;
 	onRefresh: () => void;
+	onViewPhoto: (item: ArAppItem) => void;
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
-	const [verifying, setVerifying] = useState(false);
 
 	const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -91,29 +339,18 @@ function PhotoCell({
 		e.target.value = "";
 	};
 
-	const verify = async () => {
-		setVerifying(true);
-		await fetch(`${API}/api/Ar/verify-photo/${item.id}`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${token}`,
-			},
-			body: JSON.stringify({ verifiedBy: "admin" }),
-		});
-		setVerifying(false);
-		onRefresh();
-	};
-
 	if (item.isPhotoVerified) {
 		return (
 			<div className="flex items-center gap-1.5 flex-wrap">
 				<Chip size="sm" color="success" variant="flat">
 					✓ Verified
 				</Chip>
-				{item.verifiedBy && (
-					<span className="text-xs text-default-400">{item.verifiedBy}</span>
-				)}
+				<button
+					onClick={() => onViewPhoto(item)}
+					className="text-xs text-primary underline hover:text-primary-600 transition-colors"
+				>
+					View photo
+				</button>
 			</div>
 		);
 	}
@@ -121,23 +358,15 @@ function PhotoCell({
 	if (item.photoPath) {
 		return (
 			<div className="flex items-center gap-2 flex-wrap">
-				<a
-					href={`${API}/${item.photoPath}`}
-					target="_blank"
-					rel="noreferrer"
-					className="text-xs text-primary underline hover:text-primary-600"
+				<button
+					onClick={() => onViewPhoto(item)}
+					className="text-xs text-primary underline hover:text-primary-600 transition-colors font-medium"
 				>
 					View photo ↗
-				</a>
-				<Button
-					size="sm"
-					color="success"
-					variant="flat"
-					isLoading={verifying}
-					onPress={verify}
-				>
-					Verify
-				</Button>
+				</button>
+				<Chip size="sm" color="warning" variant="flat">
+					Pending review
+				</Chip>
 			</div>
 		);
 	}
@@ -189,12 +418,9 @@ function AddItemModal({
 	};
 	const [form, setForm] = useState(blank);
 	const [saving, setSaving] = useState(false);
-
-	const set = (key: keyof typeof form) => (v: string) =>
-		setForm((f) => ({ ...f, [key]: v }));
-
+	const set = (k: keyof typeof form) => (v: string) =>
+		setForm((f) => ({ ...f, [k]: v }));
 	const totalPreview = Number(form.totalQuantity) * Number(form.price) || null;
-
 	const save = async () => {
 		setSaving(true);
 		try {
@@ -219,7 +445,6 @@ function AddItemModal({
 			setSaving(false);
 		}
 	};
-
 	return (
 		<Modal isOpen={isOpen} onOpenChange={onClose} size="lg">
 			<ModalContent>
@@ -263,7 +488,7 @@ function AddItemModal({
 							type="number"
 						/>
 						<div className="flex items-center gap-2 text-sm text-default-500">
-							Total:
+							Total:{" "}
 							<span className="font-semibold text-default-800">
 								{fmt(totalPreview)}
 							</span>
@@ -299,12 +524,9 @@ export default function ArDetailPage({
 }: ArDetailPageProps) {
 	const token = useStore($token);
 
-	// Accept a plain string prop from Astro, or fall back to reading the URL.
-	// Guard against Astro accidentally passing the whole params object.
 	const arCode: string = (() => {
-		if (typeof arCodeProp === "string" && arCodeProp.length > 0) {
+		if (typeof arCodeProp === "string" && arCodeProp.length > 0)
 			return decodeURIComponent(arCodeProp);
-		}
 		if (typeof window !== "undefined") {
 			const parts = window.location.pathname.split("/ar/");
 			return decodeURIComponent(parts[parts.length - 1] ?? "");
@@ -316,25 +538,30 @@ export default function ArDetailPage({
 	const [loading, setLoading] = useState(true);
 	const [notFound, setNotFound] = useState(false);
 
-	const { isOpen, onOpen, onClose } = useDisclosure();
+	// Add item modal
+	const {
+		isOpen: addOpen,
+		onOpen: openAdd,
+		onClose: closeAdd,
+	} = useDisclosure();
+	// Image viewer modal
+	const {
+		isOpen: imgOpen,
+		onOpen: openImg,
+		onClose: closeImg,
+	} = useDisclosure();
+	const [viewingItem, setViewingItem] = useState<ArAppItem | null>(null);
 
 	const fetchDetail = useCallback(async () => {
 		if (!arCode) return;
-
-		// This removes "/projects/" or anything before the actual AR ID
-		const cleanArCode = arCode.includes("/") ? arCode.split("/").pop() : arCode;
-
-		if (!cleanArCode) return;
+		const cleanArCode = arCode.includes("/")
+			? arCode.split("/").pop()!
+			: arCode;
 		setLoading(true);
 		try {
-			const cleanArCode = arCode.includes("/")
-				? arCode.split("/").pop()!
-				: arCode;
 			const res = await fetch(
 				`${API}/api/Ar/${encodeURIComponent(cleanArCode)}`,
-				{
-					headers: { Authorization: `Bearer ${token}` },
-				},
+				{ headers: { Authorization: `Bearer ${token}` } },
 			);
 			if (res.status === 404) {
 				setNotFound(true);
@@ -351,16 +578,19 @@ export default function ArDetailPage({
 		fetchDetail();
 	}, [fetchDetail]);
 
-	// ── Loading / not found states ─────────────────────────────────────────────
-	if (loading) {
+	const handleViewPhoto = (item: ArAppItem) => {
+		setViewingItem(item);
+		openImg();
+	};
+
+	if (loading)
 		return (
 			<div className="flex justify-center items-center h-64">
 				<Spinner label="Loading AR details…" />
 			</div>
 		);
-	}
 
-	if (notFound || !detail) {
+	if (notFound || !detail)
 		return (
 			<div className="p-10 text-center">
 				<p className="text-default-400 text-lg mb-2">AR code not found</p>
@@ -370,13 +600,11 @@ export default function ArDetailPage({
 				</Button>
 			</div>
 		);
-	}
 
 	const verificationPct =
 		detail.totalCount > 0
 			? Math.round((detail.verifiedCount / detail.totalCount) * 100)
 			: 0;
-
 	const costDelta =
 		detail.estimatedCost != null
 			? detail.totalAppCost - detail.estimatedCost
@@ -384,7 +612,7 @@ export default function ArDetailPage({
 
 	return (
 		<div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto">
-			{/* ── Back ── */}
+			{/* Back */}
 			<button
 				onClick={() => history.back()}
 				className="flex items-center gap-1.5 text-sm text-default-400 hover:text-primary w-fit transition-colors"
@@ -405,9 +633,8 @@ export default function ArDetailPage({
 				Back to School Implementation Plan
 			</button>
 
-			{/* ── Summary card ── */}
+			{/* Summary card */}
 			<div className="bg-gradient-to-br from-primary/8 via-primary/5 to-transparent border border-primary/20 rounded-2xl p-6 flex flex-col gap-5">
-				{/* Top row: AR code + verification chip */}
 				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div className="flex flex-col gap-1">
 						<div className="flex items-center gap-2 flex-wrap">
@@ -431,12 +658,10 @@ export default function ArDetailPage({
 							{[detail.kra, detail.category].filter(Boolean).join(" · ")}
 						</p>
 					</div>
-
-					{/* Cost comparison */}
 					<div className="flex gap-6 items-start">
 						<div className="text-right">
 							<p className="text-xs text-default-400 uppercase tracking-wide mb-0.5">
-								SIP Estimated Cost
+								Program Estimated Cost
 							</p>
 							<p className="text-2xl font-bold text-default-700">
 								{fmt(detail.estimatedCost)}
@@ -444,17 +669,14 @@ export default function ArDetailPage({
 						</div>
 						<div className="text-right">
 							<p className="text-xs text-default-400 uppercase tracking-wide mb-0.5">
-								Total APP Cost
+								Current Total Cost
 							</p>
 							<p className="text-2xl font-bold text-primary">
 								{fmt(detail.totalAppCost)}
 							</p>
 							{costDelta != null && (
 								<p
-									className={[
-										"text-xs font-semibold mt-0.5",
-										costDelta > 0 ? "text-danger-500" : "text-success-600",
-									].join(" ")}
+									className={`text-xs font-semibold mt-0.5 ${costDelta > 0 ? "text-danger-500" : "text-success-600"}`}
 								>
 									{costDelta > 0 ? "+" : ""}
 									{fmt(costDelta)} vs estimate
@@ -463,8 +685,6 @@ export default function ArDetailPage({
 						</div>
 					</div>
 				</div>
-
-				{/* Verification progress bar */}
 				<div className="flex flex-col gap-1.5">
 					<div className="flex justify-between text-xs text-default-500">
 						<span>Photo Verification Progress</span>
@@ -487,7 +707,7 @@ export default function ArDetailPage({
 				</div>
 			</div>
 
-			{/* ── APP Items table ── */}
+			{/* APP Items table */}
 			<div className="flex flex-col gap-3">
 				<div className="flex items-center justify-between flex-wrap gap-2">
 					<div className="flex items-center gap-2">
@@ -496,7 +716,7 @@ export default function ArDetailPage({
 							{detail.appItems.length}
 						</Chip>
 					</div>
-					<Button color="primary" size="sm" onPress={onOpen}>
+					<Button color="primary" size="sm" onPress={openAdd}>
 						+ Add Item
 					</Button>
 				</div>
@@ -510,7 +730,7 @@ export default function ArDetailPage({
 						<TableColumn className="text-right w-14">Qty</TableColumn>
 						<TableColumn className="text-right w-28">Price</TableColumn>
 						<TableColumn className="text-right w-32">Total</TableColumn>
-						<TableColumn className="w-48">Photo / Status</TableColumn>
+						<TableColumn className="w-52">Photo / Status</TableColumn>
 					</TableHeader>
 					<TableBody
 						emptyContent={
@@ -557,6 +777,7 @@ export default function ArDetailPage({
 										item={item}
 										token={token}
 										onRefresh={fetchDetail}
+										onViewPhoto={handleViewPhoto}
 									/>
 								</TableCell>
 							</TableRow>
@@ -564,7 +785,6 @@ export default function ArDetailPage({
 					</TableBody>
 				</Table>
 
-				{/* Totals footer */}
 				{detail.appItems.length > 0 && (
 					<div className="flex justify-end mt-1">
 						<div className="flex items-center gap-6 bg-default-50 border border-default-200 rounded-xl px-5 py-3">
@@ -578,10 +798,7 @@ export default function ArDetailPage({
 										vs SIP Estimate
 									</span>
 									<span
-										className={[
-											"text-sm font-semibold",
-											costDelta > 0 ? "text-danger-500" : "text-success-600",
-										].join(" ")}
+										className={`text-sm font-semibold ${costDelta > 0 ? "text-danger-500" : "text-success-600"}`}
 									>
 										{costDelta > 0 ? "+" : ""}
 										{fmt(costDelta)}
@@ -593,14 +810,23 @@ export default function ArDetailPage({
 				)}
 			</div>
 
-			{/* ── Add Item Modal ── */}
+			{/* Add Item Modal */}
 			<AddItemModal
 				sipItemId={detail.sipItemId}
 				arCode={detail.arCode}
-				isOpen={isOpen}
-				onClose={onClose}
+				isOpen={addOpen}
+				onClose={closeAdd}
 				onAdded={fetchDetail}
 				token={token}
+			/>
+
+			{/* Image Viewer Modal */}
+			<ImageViewerModal
+				item={viewingItem}
+				isOpen={imgOpen}
+				onClose={closeImg}
+				token={token}
+				onVerified={fetchDetail}
 			/>
 		</div>
 	);

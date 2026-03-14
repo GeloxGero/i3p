@@ -1,136 +1,200 @@
 import React, { useEffect, useState } from "react";
 import { useStore } from "@nanostores/react";
 import { $token, $userProfile } from "../store/authStore";
-import {
-	Card,
-	CardHeader,
-	CardBody,
-	Avatar,
-	Divider,
-	Chip,
-	Button,
-	Skeleton,
-	CardFooter,
-} from "@heroui/react";
+
+const AUTHORITY_LABEL: Record<number, string> = {
+	0: "Normal User",
+	1: "Administrator",
+};
+const AUTHORITY_COLOR: Record<number, string> = { 0: "#22c55e", 1: "#f59e0b" };
 
 export default function Profile() {
 	const token = useStore($token);
-	const [hasMounted, setHasMounted] = useState(false); // Add this
+	const [mounted, setMounted] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [profile, setProfile] = useState<any>(null);
+	const [loggingOut, setLoggingOut] = useState(false);
 
-	// 1. Set mounted to true once we are in the browser
 	useEffect(() => {
-		setHasMounted(true);
+		setMounted(true);
 	}, []);
 
 	useEffect(() => {
-		if (!hasMounted) return; // Don't fetch until we are in the browser
-
-		const loadProfile = async () => {
-			if (!token) {
-				window.location.href = "/login";
-				return;
-			}
-
+		if (!mounted) return;
+		if (!token) {
+			window.location.href = "/login";
+			return;
+		}
+		(async () => {
 			try {
-				const response = await fetch(
-					"http://localhost:5109/api/user/GetProfile",
-					{
-						headers: { Authorization: `Bearer ${token}` },
-					}
-				);
-
-				if (response.ok) {
-					const data = await response.json();
-					setProfile(data);
-					$userProfile.set(data);
+				const res = await fetch("http://localhost:5109/api/user/GetProfile", {
+					headers: { Authorization: `Bearer ${token}` },
+				});
+				if (res.ok) {
+					const d = await res.json();
+					setProfile(d);
+					$userProfile.set(d);
 				} else {
 					$token.set(null);
 					window.location.href = "/login";
 				}
-			} catch (error) {
-				console.error("Fetch error:", error);
+			} catch {
 			} finally {
 				setLoading(false);
 			}
-		};
+		})();
+	}, [token, mounted]);
 
-		loadProfile();
-	}, [token, hasMounted]);
+	const handleLogout = async () => {
+		setLoggingOut(true);
+		await new Promise((r) => setTimeout(r, 400));
+		$token.set(null);
+		window.location.href = "/login";
+	};
 
-	// 2. Return a consistent loading state during SSR
-	if (!hasMounted || loading) {
+	// Skeleton
+	if (!mounted || loading)
 		return (
-			<div className="max-w-[400px] mx-auto mt-10 p-4">
-				<Card className="p-6 space-y-5">
-					<Skeleton className="rounded-full w-24 h-24 mx-auto" />
-					<div className="space-y-3">
-						<Skeleton className="h-5 w-3/4 mx-auto rounded-lg" />
-						<Skeleton className="h-4 w-1/2 mx-auto rounded-lg" />
-					</div>
-				</Card>
+			<div className="min-h-screen flex items-center justify-center bg-[#0f1117]">
+				<div className="w-full max-w-sm p-8 rounded-2xl border border-white/[0.06] bg-white/[0.02] animate-pulse flex flex-col items-center gap-5">
+					<div className="w-24 h-24 rounded-full bg-white/[0.06]" />
+					<div className="h-5 w-40 rounded-lg bg-white/[0.06]" />
+					<div className="h-4 w-56 rounded-lg bg-white/[0.06]" />
+					<div className="h-10 w-full rounded-xl bg-white/[0.06]" />
+				</div>
 			</div>
 		);
-	}
+
+	const initials =
+		profile?.name
+			?.split(" ")
+			.map((w: string) => w[0])
+			.join("")
+			.slice(0, 2)
+			.toUpperCase() ?? "?";
+	const authority = profile?.authority ?? 0;
 
 	return (
-		<div className="flex justify-center items-center py-12 px-4">
-			<Card className="w-full max-w-[400px] shadow-xl border border-divider">
-				<CardHeader className="flex flex-col items-center gap-3 pt-8">
-					<Avatar
-						src={profile?.photo}
-						className="w-24 h-24 text-large"
-						isBordered
-						color="primary"
-					/>
-					<div className="text-center">
-						<h1 className="text-2xl font-bold text-foreground">
-							{profile?.name}
-						</h1>
-						<p className="text-default-500 text-small">{profile?.email}</p>
-					</div>
-					<Chip
-						color={profile?.authority === 1 ? "warning" : "success"}
-						variant="flat"
-						size="sm"
-					>
-						{profile?.authority === 1 ? "ADMINISTRATOR" : "NORMAL USER"}
-					</Chip>
-				</CardHeader>
+		<div
+			className="min-h-screen flex items-center justify-center bg-[#0f1117] px-4"
+			style={{
+				backgroundImage:
+					"radial-gradient(ellipse 60% 50% at 50% 0%, rgba(59,130,246,0.06) 0%, transparent 70%)",
+			}}
+		>
+			<div
+				className="absolute inset-0 pointer-events-none"
+				style={{
+					backgroundImage:
+						"linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px)",
+					backgroundSize: "40px 40px",
+				}}
+			/>
 
-				<Divider className="my-4 mx-8 w-auto" />
-
-				<CardBody className="px-8 pb-4">
-					<div className="flex flex-col gap-4">
-						<div className="flex justify-between">
-							<span className="text-default-500 text-small">Account Type</span>
-							<span className="text-small font-medium">Standard Ledger</span>
-						</div>
-						<div className="flex justify-between">
-							<span className="text-default-500 text-small">Status</span>
-							<Chip size="sm" color="success" variant="dot">
-								Verified
-							</Chip>
-						</div>
-					</div>
-				</CardBody>
-
-				<CardFooter className="px-8 pb-8 pt-4">
-					<Button
-						fullWidth
-						color="danger"
-						variant="flat"
-						className="font-semibold"
-						onPress={() => {
-							$token.set(null);
-							window.location.href = "/login";
+			<div className="relative w-full max-w-sm">
+				<div className="absolute -inset-px rounded-2xl bg-gradient-to-br from-blue-500/10 via-transparent to-transparent pointer-events-none" />
+				<div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl shadow-2xl overflow-hidden">
+					{/* Top accent bar */}
+					<div
+						className="h-1 w-full"
+						style={{
+							background: `linear-gradient(90deg, transparent, ${AUTHORITY_COLOR[authority]}, transparent)`,
 						}}
-					>
-						Log Out
-					</Button>
-				</CardFooter>
-			</Card>
+					/>
+
+					<div className="p-8 flex flex-col items-center gap-6">
+						{/* Avatar */}
+						<div className="relative">
+							{profile?.photo ? (
+								<img
+									src={profile.photo}
+									alt={profile.name}
+									className="w-24 h-24 rounded-full object-cover border-2 border-white/10"
+								/>
+							) : (
+								<div
+									className="w-24 h-24 rounded-full flex items-center justify-center text-2xl font-bold text-white border-2 border-white/10"
+									style={{
+										background: "linear-gradient(135deg, #1d4ed8, #2563eb)",
+									}}
+								>
+									{initials}
+								</div>
+							)}
+							{/* Online dot */}
+							<span className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-[#0f1117]" />
+						</div>
+
+						{/* Name & email */}
+						<div className="text-center">
+							<h1
+								className="text-xl font-bold text-white mb-1"
+								style={{ fontFamily: "'Georgia', serif" }}
+							>
+								{profile?.name}
+							</h1>
+							<p className="text-sm text-white/40">{profile?.email}</p>
+						</div>
+
+						{/* Role badge */}
+						<span
+							className="px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest border"
+							style={{
+								color: AUTHORITY_COLOR[authority],
+								borderColor: `${AUTHORITY_COLOR[authority]}33`,
+								background: `${AUTHORITY_COLOR[authority]}11`,
+							}}
+						>
+							{AUTHORITY_LABEL[authority] ?? "User"}
+						</span>
+
+						{/* Details */}
+						<div className="w-full divide-y divide-white/[0.05] rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+							<div className="flex items-center justify-between px-4 py-3">
+								<span className="text-xs text-white/40">Account Type</span>
+								<span className="text-xs font-medium text-white/80">
+									Standard Ledger
+								</span>
+							</div>
+							<div className="flex items-center justify-between px-4 py-3">
+								<span className="text-xs text-white/40">Status</span>
+								<span className="flex items-center gap-1.5 text-xs font-medium text-green-400">
+									<span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+									Active
+								</span>
+							</div>
+							<div className="flex items-center justify-between px-4 py-3">
+								<span className="text-xs text-white/40">Member since</span>
+								<span className="text-xs font-medium text-white/80">
+									{profile?.dateCreated
+										? new Date(profile.dateCreated).toLocaleDateString(
+												"en-PH",
+												{ year: "numeric", month: "short" },
+											)
+										: "—"}
+								</span>
+							</div>
+						</div>
+
+						{/* Actions */}
+						<div className="w-full flex flex-col gap-2">
+							<a
+								href="/"
+								className="w-full py-2.5 rounded-xl border border-white/[0.08] text-white/70 text-sm font-medium text-center hover:border-white/20 hover:text-white transition-all"
+							>
+								← Back to Dashboard
+							</a>
+							<button
+								onClick={handleLogout}
+								disabled={loggingOut}
+								className="w-full py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/20 hover:border-red-500/30 transition-all disabled:opacity-60"
+							>
+								{loggingOut ? "Signing out…" : "Sign Out"}
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }
