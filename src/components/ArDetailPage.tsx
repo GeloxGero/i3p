@@ -601,7 +601,7 @@ export default function ArDetailPage({
 	const devFastVerify = async (itemId: number) => {
 		try {
 			const response = await fetch(
-				`https://i3p-server-1.onrender.com/api/AnnualProcurementPlan/items/${itemId}/verify`,
+				`https://i3p-server-1.onrender.com/api/AR/verify-photo/${itemId}`,
 				{
 					method: "PATCH",
 					headers: {
