@@ -608,22 +608,22 @@ export default function ArDetailPage({
 						"Content-Type": "application/json",
 						Authorization: `Bearer ${token}`,
 					},
-					// Sending a dummy admin name for dev purposes
-					body: JSON.stringify("Dev_Admin_User"),
+					// Passing a dev string for the 'VerifiedBy' column
+					body: JSON.stringify("Dev_Fast_Click"),
 				},
 			);
 
 			if (response.ok) {
-				toast.success("Item verified (Dev Mode)");
-				fetchDetail(); // Refresh table
+				// Re-fetch the data to update the table state
+				fetchDetail();
 			} else {
-				const err = await response.text();
-				toast.error(`Verification failed: ${err}`);
+				console.error("Verification failed");
 			}
 		} catch (error) {
-			console.error("Dev verify error:", error);
+			console.error("Error:", error);
 		}
 	};
+
 	const fetchDetail = useCallback(async () => {
 		if (!arCode) return;
 		const cleanArCode = arCode.includes("/")
@@ -807,7 +807,8 @@ export default function ArDetailPage({
 						<TableColumn className="text-right w-14">Qty</TableColumn>
 						<TableColumn className="text-right w-28">Price</TableColumn>
 						<TableColumn className="text-right w-32">Total</TableColumn>
-						<TableColumn className="w-52">Photo / Status</TableColumn>
+						<TableColumn className="w-52">Photo</TableColumn>
+						<TableColumn className="w-52">Status</TableColumn>
 					</TableHeader>
 					<TableBody
 						emptyContent={
@@ -856,6 +857,28 @@ export default function ArDetailPage({
 										onRefresh={fetchDetail}
 										onViewPhoto={handleViewPhoto}
 									/>
+								</TableCell>
+								<TableCell className="text-right">
+									{item.isPhotoVerified ? (
+										<Chip
+											size="sm"
+											color="success"
+											variant="flat"
+											className="font-bold"
+										>
+											Implemented
+										</Chip>
+									) : (
+										<Button
+											size="sm"
+											color="warning"
+											variant="flat"
+											className="font-bold cursor-pointer hover:bg-warning-100"
+											onPress={() => devFastVerify(item.id)}
+										>
+											Verify Now
+										</Button>
+									)}
 								</TableCell>
 							</TableRow>
 						))}
