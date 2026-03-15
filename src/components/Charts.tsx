@@ -64,7 +64,7 @@ interface PlanDetail {
 	months: MonthSheet[];
 }
 
-const API = "http://localhost:5109";
+const API = "https://i3p-server-1.onrender.com";
 
 const CATEGORY_COLORS: Record<string, string> = {
 	"Regular Expenditure": "#3b82f6",
@@ -354,7 +354,7 @@ export default function Charts() {
 		setLoadingList(true);
 		try {
 			const res = await fetch(
-				`https://i3p-server-1.onrender.comapi/SchoolImplementation`,
+				`https://i3p-server-1.onrender.com/api/SchoolImplementation`,
 				{
 					headers: { Authorization: `Bearer ${token}` },
 				},
@@ -574,7 +574,7 @@ function SetBudgetModal({
 		setSaving(true);
 		try {
 			const res = await fetch(
-				`https://i3p-server-1.onrender.comapi/SchoolImplementation/${plan.id}/budget`,
+				`https://i3p-server-1.onrender.com/api/SchoolImplementation/${plan.id}/budget`,
 				{
 					method: "PUT",
 					headers: {
