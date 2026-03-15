@@ -10,7 +10,7 @@ export default defineConfig({
 	output: "static",
 	integrations: [react()],
 	server: {
-		host: true, // This maps to 0.0.0.0
+		host: true, // This maps to 0.0.0.0q
 		port: 10000,
 	},
 });

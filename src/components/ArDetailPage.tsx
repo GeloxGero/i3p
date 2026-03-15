@@ -20,9 +20,7 @@ import {
 	Tooltip,
 	Progress,
 } from "@heroui/react";
-import { toast } from "../components/Toast";
 import { $token } from "../store/authStore";
-import { $currentArCode } from "../store/tableStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,7 +53,7 @@ interface ArDetail {
 	totalCount: number;
 }
 
-const API = "https://i3p-server-1.onrender.com";
+const API = "http://localhost:5109";
 
 function fmt(n: number | null | undefined) {
 	if (n == null) return "—";
@@ -96,17 +94,14 @@ function ImageViewerModal({
 	const verify = async () => {
 		setVerifying(true);
 		try {
-			await fetch(
-				`https://i3p-server-1.onrender.com/api/Ar/verify-photo/${item.id}`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${token}`,
-					},
-					body: JSON.stringify({ verifiedBy: "admin" }),
+			await fetch(`${API}/api/Ar/verify-photo/${item.id}`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
 				},
-			);
+				body: JSON.stringify({ verifiedBy: "admin" }),
+			});
 			onVerified();
 			onClose();
 		} finally {
@@ -312,6 +307,8 @@ function ImageViewerModal({
 	);
 }
 
+// ─── Photo Cell ───────────────────────────────────────────────────────────────
+
 function PhotoCell({
 	item,
 	token,
@@ -325,61 +322,21 @@ function PhotoCell({
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
-	const [verifying, setVerifying] = useState(false);
 
 	const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
-		if (!file || !token) return;
-
+		if (!file) return;
 		setUploading(true);
 		const fd = new FormData();
-		fd.append("file", file); // Matches your C# IFormFile file parameter
-
-		try {
-			const response = await fetch(
-				`https://i3p-server-1.onrender.com/api/AnnualProcurementPlan/items/${item.id}/upload-photo`,
-				{
-					method: "POST",
-					headers: {
-						// No Content-Type - browser sets multipart/form-data automatically
-						Authorization: `Bearer ${token}`,
-					},
-					body: fd,
-				},
-			);
-
-			if (response.ok) {
-				onRefresh(); // Backend returns photoPath, frontend refreshes to show it
-			} else {
-				console.error("Upload failed:", await response.text());
-			}
-		} catch (error) {
-			console.error("Error uploading:", error);
-		} finally {
-			setUploading(false);
-			e.target.value = "";
-		}
-	};
-
-	const verify = async () => {
-		if (!token || !item.photoPath) return;
-		setVerifying(true);
-		try {
-			await fetch(
-				`https://i3p-server-1.onrender.com/api/Ar/verify-photo/${item.id}`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${token}`,
-					},
-					body: JSON.stringify({ verifiedBy: "admin" }),
-				},
-			);
-			onRefresh();
-		} finally {
-			setVerifying(false);
-		}
+		fd.append("photo", file);
+		await fetch(`${API}/api/Ar/photo/${item.id}`, {
+			method: "POST",
+			headers: { Authorization: `Bearer ${token}` },
+			body: fd,
+		});
+		setUploading(false);
+		onRefresh();
+		e.target.value = "";
 	};
 
 	if (item.isPhotoVerified) {
@@ -401,15 +358,6 @@ function PhotoCell({
 	if (item.photoPath) {
 		return (
 			<div className="flex items-center gap-2 flex-wrap">
-				<Button
-					size="sm"
-					variant="flat"
-					color="success"
-					isLoading={verifying}
-					onPress={verify}
-				>
-					✓ Verify
-				</Button>
 				<button
 					onClick={() => onViewPhoto(item)}
 					className="text-xs text-primary underline hover:text-primary-600 transition-colors font-medium"
@@ -476,23 +424,20 @@ function AddItemModal({
 	const save = async () => {
 		setSaving(true);
 		try {
-			await fetch(
-				`https://i3p-server-1.onrender.com/api/Ar/add-item/${sipItemId}`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${token}`,
-					},
-					body: JSON.stringify({
-						itemDescription: form.itemDescription,
-						specification: form.specification,
-						unitOfMeasure: form.unitOfMeasure,
-						totalQuantity: Number(form.totalQuantity) || null,
-						price: Number(form.price) || null,
-					}),
+			await fetch(`${API}/api/Ar/add-item/${sipItemId}`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
 				},
-			);
+				body: JSON.stringify({
+					itemDescription: form.itemDescription,
+					specification: form.specification,
+					unitOfMeasure: form.unitOfMeasure,
+					totalQuantity: Number(form.totalQuantity) || null,
+					price: Number(form.price) || null,
+				}),
+			});
 			setForm(blank);
 			onAdded();
 			onClose();
@@ -578,7 +523,16 @@ export default function ArDetailPage({
 	arCode: arCodeProp,
 }: ArDetailPageProps) {
 	const token = useStore($token);
-	const arCode = useStore($currentArCode);
+
+	const arCode: string = (() => {
+		if (typeof arCodeProp === "string" && arCodeProp.length > 0)
+			return decodeURIComponent(arCodeProp);
+		if (typeof window !== "undefined") {
+			const parts = window.location.pathname.split("/ar/");
+			return decodeURIComponent(parts[parts.length - 1] ?? "");
+		}
+		return "";
+	})();
 
 	const [detail, setDetail] = useState<ArDetail | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -598,32 +552,6 @@ export default function ArDetailPage({
 	} = useDisclosure();
 	const [viewingItem, setViewingItem] = useState<ArAppItem | null>(null);
 
-	const devFastVerify = async (itemId: number) => {
-		try {
-			const response = await fetch(
-				`https://i3p-server-1.onrender.com/api/AR/verify-photo/${itemId}`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${token}`,
-					},
-					// Passing a dev string for the 'VerifiedBy' column
-					body: JSON.stringify("Dev_Fast_Click"),
-				},
-			);
-
-			if (response.ok) {
-				// Re-fetch the data to update the table state
-				fetchDetail();
-			} else {
-				console.error("Verification failed");
-			}
-		} catch (error) {
-			console.error("Error:", error);
-		}
-	};
-
 	const fetchDetail = useCallback(async () => {
 		if (!arCode) return;
 		const cleanArCode = arCode.includes("/")
@@ -632,7 +560,7 @@ export default function ArDetailPage({
 		setLoading(true);
 		try {
 			const res = await fetch(
-				`https://i3p-server-1.onrender.com/api/Ar/${encodeURIComponent(cleanArCode)}`,
+				`${API}/api/Ar/${encodeURIComponent(cleanArCode)}`,
 				{ headers: { Authorization: `Bearer ${token}` } },
 			);
 			if (res.status === 404) {
@@ -647,11 +575,6 @@ export default function ArDetailPage({
 	}, [arCode, token]);
 
 	useEffect(() => {
-		const params = new URLSearchParams(window.location.search);
-		const code = params.get("code");
-		if (code) {
-			$currentArCode.set(code);
-		}
 		fetchDetail();
 	}, [fetchDetail]);
 
@@ -660,7 +583,7 @@ export default function ArDetailPage({
 		openImg();
 	};
 
-	if (loading || !arCode)
+	if (loading)
 		return (
 			<div className="flex justify-center items-center h-64">
 				<Spinner label="Loading AR details…" />
@@ -807,8 +730,7 @@ export default function ArDetailPage({
 						<TableColumn className="text-right w-14">Qty</TableColumn>
 						<TableColumn className="text-right w-28">Price</TableColumn>
 						<TableColumn className="text-right w-32">Total</TableColumn>
-						<TableColumn className="w-52">Photo</TableColumn>
-						<TableColumn className="w-52">Status</TableColumn>
+						<TableColumn className="w-52">Photo / Status</TableColumn>
 					</TableHeader>
 					<TableBody
 						emptyContent={
@@ -857,28 +779,6 @@ export default function ArDetailPage({
 										onRefresh={fetchDetail}
 										onViewPhoto={handleViewPhoto}
 									/>
-								</TableCell>
-								<TableCell className="text-right">
-									{item.isPhotoVerified ? (
-										<Chip
-											size="sm"
-											color="success"
-											variant="flat"
-											className="font-bold"
-										>
-											Implemented
-										</Chip>
-									) : (
-										<Button
-											size="sm"
-											color="warning"
-											variant="flat"
-											className="font-bold cursor-pointer hover:bg-warning-100"
-											onPress={() => devFastVerify(item.id)}
-										>
-											Verify Now
-										</Button>
-									)}
 								</TableCell>
 							</TableRow>
 						))}
