@@ -311,12 +311,6 @@ function ImageViewerModal({
 	);
 }
 
-// ─── Photo Cell ───────────────────────────────────────────────────────────────
-
-// ─── Photo Cell ───────────────────────────────────────────────────────────────
-
-// ─── Photo Cell ───────────────────────────────────────────────────────────────
-
 function PhotoCell({
 	item,
 	token,
@@ -332,73 +326,34 @@ function PhotoCell({
 	const [uploading, setUploading] = useState(false);
 	const [verifying, setVerifying] = useState(false);
 
-	// Cloudinary configuration - Replace with your actual Cloudinary credentials
-	const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME"; // Replace with your cloud name
-	const CLOUDINARY_UPLOAD_PRESET = "YOUR_UPLOAD_PRESET"; // Replace with your unsigned upload preset
-
-	const uploadToCloudinary = async (file: File): Promise<string> => {
-		const formData = new FormData();
-		formData.append("file", file);
-		formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-		// Optional: Add transformation parameters
-		formData.append("folder", "ar-photos"); // Organize uploads in a folder
-		formData.append(
-			"transformation",
-			JSON.stringify([{ quality: "auto" }, { fetch_format: "auto" }]),
-		);
-
-		const response = await fetch(
-			`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`,
-			{
-				method: "POST",
-				body: formData,
-			},
-		);
-
-		if (!response.ok) {
-			throw new Error(`Cloudinary upload failed: ${response.statusText}`);
-		}
-
-		const data = await response.json();
-		return data.secure_url; // Returns the CDN URL for the uploaded file
-	};
-
-	const savePhotoPath = async (photoUrl: string) => {
-		const response = await fetch(
-			`https://i3p-server-1.onrender.com/api/AnnualProcurementPlan/items/${item.id}/upload-photo`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${token}`,
-				},
-				body: JSON.stringify({ photoPath: photoUrl }),
-			},
-		);
-
-		if (!response.ok) {
-			throw new Error("Failed to save photo path to backend");
-		}
-	};
-
 	const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file || !token) return;
 
 		setUploading(true);
+		const fd = new FormData();
+		fd.append("file", file); // Matches your C# IFormFile file parameter
+
 		try {
-			// Step 1: Upload to Cloudinary
-			const cloudinaryUrl = await uploadToCloudinary(file);
+			const response = await fetch(
+				`https://i3p-server-1.onrender.com/api/AnnualProcurementPlan/items/${item.id}/upload-photo`,
+				{
+					method: "POST",
+					headers: {
+						// No Content-Type - browser sets multipart/form-data automatically
+						Authorization: `Bearer ${token}`,
+					},
+					body: fd,
+				},
+			);
 
-			// Step 2: Save the Cloudinary URL to your backend
-			await savePhotoPath(cloudinaryUrl);
-
-			// Step 3: Refresh to show "Pending review"
-			onRefresh();
+			if (response.ok) {
+				onRefresh(); // Backend returns photoPath, frontend refreshes to show it
+			} else {
+				console.error("Upload failed:", await response.text());
+			}
 		} catch (error) {
-			console.error("Upload failed:", error);
-			// You could add a toast notification here for user feedback
+			console.error("Error uploading:", error);
 		} finally {
 			setUploading(false);
 			e.target.value = "";
