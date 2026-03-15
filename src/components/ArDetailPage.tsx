@@ -53,7 +53,7 @@ interface ArDetail {
 	totalCount: number;
 }
 
-const API = "http://localhost:5109";
+const API = "https://i3p-server-1.onrender.com";
 
 function fmt(n: number | null | undefined) {
 	if (n == null) return "—";
