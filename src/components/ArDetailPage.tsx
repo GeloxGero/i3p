@@ -21,6 +21,7 @@ import {
 	Progress,
 } from "@heroui/react";
 import { $token } from "../store/authStore";
+import { $currentArCode } from "../store/tableStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -529,16 +530,7 @@ export default function ArDetailPage({
 	arCode: arCodeProp,
 }: ArDetailPageProps) {
 	const token = useStore($token);
-
-	const arCode: string = (() => {
-		if (typeof arCodeProp === "string" && arCodeProp.length > 0)
-			return decodeURIComponent(arCodeProp);
-		if (typeof window !== "undefined") {
-			const parts = window.location.pathname.split("/ar/");
-			return decodeURIComponent(parts[parts.length - 1] ?? "");
-		}
-		return "";
-	})();
+	const arCode = useStore($currentArCode);
 
 	const [detail, setDetail] = useState<ArDetail | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -581,6 +573,11 @@ export default function ArDetailPage({
 	}, [arCode, token]);
 
 	useEffect(() => {
+		const params = new URLSearchParams(window.location.search);
+		const code = params.get("code");
+		if (code) {
+			$currentArCode.set(code);
+		}
 		fetchDetail();
 	}, [fetchDetail]);
 
@@ -589,7 +586,7 @@ export default function ArDetailPage({
 		openImg();
 	};
 
-	if (loading)
+	if (loading || !arCode)
 		return (
 			<div className="flex justify-center items-center h-64">
 				<Spinner label="Loading AR details…" />

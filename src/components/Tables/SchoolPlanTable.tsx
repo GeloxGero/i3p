@@ -349,7 +349,7 @@ function MobileItemCard({ item }: { item: SchoolPlanItem }) {
 						AR Code:
 					</span>
 					<a
-						href={`/projects/${encodeURIComponent(item.arCode)}`}
+						href={`/projects/detail?code=${encodeURIComponent(item.arCode)}`}
 						className="text-xs font-mono font-semibold text-primary hover:text-primary-400 transition-colors underline underline-offset-2 flex items-center gap-1"
 					>
 						{item.arCode}
