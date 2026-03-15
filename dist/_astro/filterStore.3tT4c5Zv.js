@@ -1,0 +1,1 @@
+import{d as a}from"./authStore.CoCse4CL.js";const e=[{key:"General Expenditure Summary",label:"General Expenditure Summary"},{key:"Item Procurement List",label:"Detailed Expenditure List"}],i=e.map(t=>t.key),l=a(e[0].key);export{l as $,e as N,i as a};
