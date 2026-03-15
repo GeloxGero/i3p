@@ -518,7 +518,8 @@ function TemplateDownloadDropdown() {
 					key="sip"
 					onPress={() =>
 						triggerDownload(
-							`https://i3p-1.onrender.com/api/Template/SchoolImplementationPlan_Template.xlsx`,
+							// Matches: api/templates/download-school-implementation-plan
+							`https://i3p-1.onrender.com/api/templates/download-school-implementation-plan`,
 							"SchoolImplementationPlan_Template.xlsx",
 						)
 					}
@@ -529,7 +530,8 @@ function TemplateDownloadDropdown() {
 					key="app"
 					onPress={() =>
 						triggerDownload(
-							`https://i3p-1.onrender.com/api/Template/AnnualProcurementPlan_Template.xlsx`,
+							// Matches: api/templates/download-procurement-plan
+							`https://i3p-1.onrender.com/api/templates/download-procurement-plan`,
 							"AnnualProcurementPlan_Template.xlsx",
 						)
 					}
