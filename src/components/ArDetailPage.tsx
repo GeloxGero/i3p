@@ -330,17 +330,36 @@ function PhotoCell({
 	const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
+
 		setUploading(true);
 		const fd = new FormData();
-		fd.append("photo", file);
-		await fetch(`https://i3p-server-1.onrender.com/api/Ar/photo/${item.id}`, {
-			method: "POST",
-			headers: { Authorization: `Bearer ${token}` },
-			body: fd,
-		});
-		setUploading(false);
-		onRefresh();
-		e.target.value = "";
+		// Changed key from "photo" to "file" to match the C# parameter 'IFormFile file'
+		fd.append("file", file);
+
+		try {
+			const response = await fetch(
+				`https://i3p-server-1.onrender.com/api/AnnualProcurementPlan/items/${item.id}/upload-photo`,
+				{
+					method: "POST",
+					headers: {
+						// Note: Do not manually set Content-Type for FormData; the browser does it
+						Authorization: `Bearer ${token}`,
+					},
+					body: fd,
+				},
+			);
+
+			if (response.ok) {
+				onRefresh(); // Refresh the parent state to show "Pending review"
+			} else {
+				console.error("Upload failed");
+			}
+		} catch (error) {
+			console.error("Error uploading:", error);
+		} finally {
+			setUploading(false);
+			e.target.value = "";
+		}
 	};
 
 	if (item.isPhotoVerified) {
