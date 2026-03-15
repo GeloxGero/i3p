@@ -1,7 +1,7 @@
-import { c as createComponent } from './astro-component_DKWqRa2-.mjs';
+import { c as createComponent } from './astro-component_DduJEcoZ.mjs';
 import 'piccolore';
-import { o as renderComponent, r as renderTemplate } from './server_VSg7zcZ5.mjs';
-import { $ as $$MainLayout } from './MainLayout_DAtbgNmp.mjs';
+import { o as renderComponent, r as renderTemplate } from './server_Cawgcfpy.mjs';
+import { $ as $$MainLayout } from './MainLayout_D2DXQPA9.mjs';
 
 const $$Index = createComponent(($$result, $$props, $$slots) => {
   return renderTemplate`${renderComponent($$result, "MainLayout", $$MainLayout, {}, { "default": ($$result2) => renderTemplate` ${renderComponent($$result2, "Profile", null, { "client:only": "react", "client:component-hydration": "only", "client:component-path": "C:/Users/Junrey/Desktop/i3p_frontend/i3p/src/components/Profile", "client:component-export": "default" })} ` })}`;

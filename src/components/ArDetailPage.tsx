@@ -94,14 +94,17 @@ function ImageViewerModal({
 	const verify = async () => {
 		setVerifying(true);
 		try {
-			await fetch(`${API}/api/Ar/verify-photo/${item.id}`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${token}`,
+			await fetch(
+				`https://i3p-server-1.onrender.com/api/Ar/verify-photo/${item.id}`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({ verifiedBy: "admin" }),
 				},
-				body: JSON.stringify({ verifiedBy: "admin" }),
-			});
+			);
 			onVerified();
 			onClose();
 		} finally {
@@ -329,7 +332,7 @@ function PhotoCell({
 		setUploading(true);
 		const fd = new FormData();
 		fd.append("photo", file);
-		await fetch(`${API}/api/Ar/photo/${item.id}`, {
+		await fetch(`https://i3p-server-1.onrender.com/api/Ar/photo/${item.id}`, {
 			method: "POST",
 			headers: { Authorization: `Bearer ${token}` },
 			body: fd,
@@ -424,20 +427,23 @@ function AddItemModal({
 	const save = async () => {
 		setSaving(true);
 		try {
-			await fetch(`${API}/api/Ar/add-item/${sipItemId}`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${token}`,
+			await fetch(
+				`https://i3p-server-1.onrender.com/api/Ar/add-item/${sipItemId}`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						itemDescription: form.itemDescription,
+						specification: form.specification,
+						unitOfMeasure: form.unitOfMeasure,
+						totalQuantity: Number(form.totalQuantity) || null,
+						price: Number(form.price) || null,
+					}),
 				},
-				body: JSON.stringify({
-					itemDescription: form.itemDescription,
-					specification: form.specification,
-					unitOfMeasure: form.unitOfMeasure,
-					totalQuantity: Number(form.totalQuantity) || null,
-					price: Number(form.price) || null,
-				}),
-			});
+			);
 			setForm(blank);
 			onAdded();
 			onClose();
@@ -560,7 +566,7 @@ export default function ArDetailPage({
 		setLoading(true);
 		try {
 			const res = await fetch(
-				`${API}/api/Ar/${encodeURIComponent(cleanArCode)}`,
+				`https://i3p-server-1.onrender.com/api/Ar/${encodeURIComponent(cleanArCode)}`,
 				{ headers: { Authorization: `Bearer ${token}` } },
 			);
 			if (res.status === 404) {

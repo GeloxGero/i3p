@@ -1,7 +1,7 @@
-import { c as createComponent } from './astro-component_DKWqRa2-.mjs';
+import { c as createComponent } from './astro-component_DduJEcoZ.mjs';
 import 'piccolore';
-import { o as renderComponent, r as renderTemplate } from './server_VSg7zcZ5.mjs';
-import { $ as $$MainLayout } from './MainLayout_DAtbgNmp.mjs';
+import { o as renderComponent, r as renderTemplate } from './server_Cawgcfpy.mjs';
+import { $ as $$MainLayout } from './MainLayout_D2DXQPA9.mjs';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 import { useState, useCallback, useEffect } from 'react';
 import { useStore } from '@nanostores/react';
@@ -19,7 +19,6 @@ Chart.register(
   BarElement,
   Title
 );
-const API = "http://localhost:5109";
 const CATEGORY_COLORS = {
   "Regular Expenditure": "#3b82f6",
   "Project Related Expenditure": "#22c55e",
@@ -256,9 +255,12 @@ function Charts() {
   const fetchHeaders = useCallback(async () => {
     setLoadingList(true);
     try {
-      const res = await fetch(`${API}/api/SchoolImplementation`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(
+        `https://i3p-server-1.onrender.comapi/SchoolImplementation`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
       setHeaders(await res.json());
     } finally {
       setLoadingList(false);
@@ -267,9 +269,12 @@ function Charts() {
   const fetchPlan = async (id) => {
     setLoadingPlan(true);
     try {
-      const res = await fetch(`${API}/api/SchoolImplementation/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(
+        `https://i3p-server-1.onrender.com/api/SchoolImplementation/${id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
       setSelectedPlan(await res.json());
     } finally {
       setLoadingPlan(false);
@@ -427,7 +432,7 @@ function SetBudgetModal({
     setSaving(true);
     try {
       const res = await fetch(
-        `${API}/api/SchoolImplementation/${plan.id}/budget`,
+        `https://i3p-server-1.onrender.comapi/SchoolImplementation/${plan.id}/budget`,
         {
           method: "PUT",
           headers: {

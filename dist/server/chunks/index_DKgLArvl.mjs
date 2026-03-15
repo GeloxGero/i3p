@@ -1,7 +1,7 @@
-import { c as createComponent } from './astro-component_DKWqRa2-.mjs';
+import { c as createComponent } from './astro-component_DduJEcoZ.mjs';
 import 'piccolore';
-import { o as renderComponent, r as renderTemplate } from './server_VSg7zcZ5.mjs';
-import { $ as $$MainLayout } from './MainLayout_DAtbgNmp.mjs';
+import { o as renderComponent, r as renderTemplate } from './server_Cawgcfpy.mjs';
+import { $ as $$MainLayout } from './MainLayout_D2DXQPA9.mjs';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useStore } from '@nanostores/react';
@@ -32,14 +32,17 @@ function ImageViewerModal({
   const verify = async () => {
     setVerifying(true);
     try {
-      await fetch(`${API}/api/Ar/verify-photo/${item.id}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ verifiedBy: "admin" })
-      });
+      await fetch(
+        `https://i3p-server-1.onrender.com/api/Ar/verify-photo/${item.id}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ verifiedBy: "admin" })
+        }
+      );
       onVerified();
       onClose();
     } finally {
@@ -238,7 +241,7 @@ function PhotoCell({
     setUploading(true);
     const fd = new FormData();
     fd.append("photo", file);
-    await fetch(`${API}/api/Ar/photo/${item.id}`, {
+    await fetch(`https://i3p-server-1.onrender.com/api/Ar/photo/${item.id}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: fd
@@ -318,20 +321,23 @@ function AddItemModal({
   const save = async () => {
     setSaving(true);
     try {
-      await fetch(`${API}/api/Ar/add-item/${sipItemId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          itemDescription: form.itemDescription,
-          specification: form.specification,
-          unitOfMeasure: form.unitOfMeasure,
-          totalQuantity: Number(form.totalQuantity) || null,
-          price: Number(form.price) || null
-        })
-      });
+      await fetch(
+        `https://i3p-server-1.onrender.com/api/Ar/add-item/${sipItemId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            itemDescription: form.itemDescription,
+            specification: form.specification,
+            unitOfMeasure: form.unitOfMeasure,
+            totalQuantity: Number(form.totalQuantity) || null,
+            price: Number(form.price) || null
+          })
+        }
+      );
       setForm(blank);
       onAdded();
       onClose();
@@ -443,7 +449,7 @@ function ArDetailPage({
     setLoading(true);
     try {
       const res = await fetch(
-        `${API}/api/Ar/${encodeURIComponent(cleanArCode)}`,
+        `https://i3p-server-1.onrender.com/api/Ar/${encodeURIComponent(cleanArCode)}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.status === 404) {

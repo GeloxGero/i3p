@@ -353,9 +353,12 @@ export default function Charts() {
 	const fetchHeaders = useCallback(async () => {
 		setLoadingList(true);
 		try {
-			const res = await fetch(`${API}/api/SchoolImplementation`, {
-				headers: { Authorization: `Bearer ${token}` },
-			});
+			const res = await fetch(
+				`https://i3p-server-1.onrender.comapi/SchoolImplementation`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				},
+			);
 			setHeaders(await res.json());
 		} finally {
 			setLoadingList(false);
@@ -365,9 +368,12 @@ export default function Charts() {
 	const fetchPlan = async (id: string) => {
 		setLoadingPlan(true);
 		try {
-			const res = await fetch(`${API}/api/SchoolImplementation/${id}`, {
-				headers: { Authorization: `Bearer ${token}` },
-			});
+			const res = await fetch(
+				`https://i3p-server-1.onrender.com/api/SchoolImplementation/${id}`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				},
+			);
 			setSelectedPlan(await res.json());
 		} finally {
 			setLoadingPlan(false);
@@ -568,7 +574,7 @@ function SetBudgetModal({
 		setSaving(true);
 		try {
 			const res = await fetch(
-				`${API}/api/SchoolImplementation/${plan.id}/budget`,
+				`https://i3p-server-1.onrender.comapi/SchoolImplementation/${plan.id}/budget`,
 				{
 					method: "PUT",
 					headers: {
