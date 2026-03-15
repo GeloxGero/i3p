@@ -541,28 +541,20 @@ function TemplateDownloadDropdown() {
 			</DropdownTrigger>
 			<DropdownMenu aria-label="Download Excel templates">
 				<DropdownItem
-					key="sip"
-					onPress={() =>
-						triggerDownload(
-							// Matches: api/templates/download-school-implementation-plan
-							`https://i3p-1.onrender.com/api/templates/download-school-implementation-plan`,
-							"SchoolImplementationPlan_Template.xlsx",
-						)
-					}
+					key="app"
+					as="a"
+					href="https://res.cloudinary.com/dlzobzben/raw/upload/v1773595856/AnnualProcurementPlan_Template_tep3fq.xlsx"
+					download="SchoolImplementationPlan_Template.xlsx"
 				>
-					School Implementation Plan
+					Annual Procurement Plan
 				</DropdownItem>
 				<DropdownItem
 					key="app"
-					onPress={() =>
-						triggerDownload(
-							// Matches: api/templates/download-procurement-plan
-							`https://i3p-1.onrender.com/api/templates/download-procurement-plan`,
-							"AnnualProcurementPlan_Template.xlsx",
-						)
-					}
+					as="a"
+					href="https://res.cloudinary.com/dlzobzben/raw/upload/fl_attachment/v1773595856/SchoolImplementationPlan_Template_vn7ijg.xlsx"
+					download="SchoolImplementationPlan_Template.xlsx"
 				>
-					Annual Procurement Plan
+					Download School Implementation Plan
 				</DropdownItem>
 			</DropdownMenu>
 		</Dropdown>
