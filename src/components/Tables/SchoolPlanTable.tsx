@@ -393,7 +393,7 @@ function ArCodeCell({ row }: { row: SchoolPlanItem }) {
 			}
 		>
 			<a
-				href={`/projects/${encodeURIComponent(row.arCode)}`}
+				href={`/projects/detail?code=${encodeURIComponent(row.arCode)}`}
 				className="inline-flex items-center gap-1.5 group"
 			>
 				<span className="text-xs font-mono text-primary underline underline-offset-2 group-hover:text-primary-600 transition-colors">

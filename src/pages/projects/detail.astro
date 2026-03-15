@@ -1,0 +1,9 @@
+---
+// If it was ../../../ before, it's likely ../../ now
+import MainLayout from "../../layouts/MainLayout.astro"
+import ArDetailPage from "../../components/ArDetailPage"
+---
+
+<MainLayout title="Project Details">
+    <ArDetailPage client:load />
+</MainLayout>
