@@ -603,7 +603,7 @@ export default function ArDetailPage({
 			const response = await fetch(
 				`https://i3p-server-1.onrender.com/api/AR/verify-photo/${itemId}`,
 				{
-					method: "PATCH",
+					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
 						Authorization: `Bearer ${token}`,
