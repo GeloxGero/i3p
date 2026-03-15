@@ -21,6 +21,7 @@ import {
 	Progress,
 } from "@heroui/react";
 import { $token } from "../store/authStore";
+import { $currentArCode } from "../store/tableStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,14 +95,17 @@ function ImageViewerModal({
 	const verify = async () => {
 		setVerifying(true);
 		try {
-			await fetch(`${API}/api/Ar/verify-photo/${item.id}`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${token}`,
+			await fetch(
+				`https://i3p-server-1.onrender.com/api/Ar/verify-photo/${item.id}`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({ verifiedBy: "admin" }),
 				},
-				body: JSON.stringify({ verifiedBy: "admin" }),
-			});
+			);
 			onVerified();
 			onClose();
 		} finally {
@@ -329,7 +333,7 @@ function PhotoCell({
 		setUploading(true);
 		const fd = new FormData();
 		fd.append("photo", file);
-		await fetch(`${API}/api/Ar/photo/${item.id}`, {
+		await fetch(`https://i3p-server-1.onrender.com/api/Ar/photo/${item.id}`, {
 			method: "POST",
 			headers: { Authorization: `Bearer ${token}` },
 			body: fd,
@@ -424,20 +428,23 @@ function AddItemModal({
 	const save = async () => {
 		setSaving(true);
 		try {
-			await fetch(`${API}/api/Ar/add-item/${sipItemId}`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${token}`,
+			await fetch(
+				`https://i3p-server-1.onrender.com/api/Ar/add-item/${sipItemId}`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						itemDescription: form.itemDescription,
+						specification: form.specification,
+						unitOfMeasure: form.unitOfMeasure,
+						totalQuantity: Number(form.totalQuantity) || null,
+						price: Number(form.price) || null,
+					}),
 				},
-				body: JSON.stringify({
-					itemDescription: form.itemDescription,
-					specification: form.specification,
-					unitOfMeasure: form.unitOfMeasure,
-					totalQuantity: Number(form.totalQuantity) || null,
-					price: Number(form.price) || null,
-				}),
-			});
+			);
 			setForm(blank);
 			onAdded();
 			onClose();
@@ -523,16 +530,7 @@ export default function ArDetailPage({
 	arCode: arCodeProp,
 }: ArDetailPageProps) {
 	const token = useStore($token);
-
-	const arCode: string = (() => {
-		if (typeof arCodeProp === "string" && arCodeProp.length > 0)
-			return decodeURIComponent(arCodeProp);
-		if (typeof window !== "undefined") {
-			const parts = window.location.pathname.split("/ar/");
-			return decodeURIComponent(parts[parts.length - 1] ?? "");
-		}
-		return "";
-	})();
+	const arCode = useStore($currentArCode);
 
 	const [detail, setDetail] = useState<ArDetail | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -560,7 +558,7 @@ export default function ArDetailPage({
 		setLoading(true);
 		try {
 			const res = await fetch(
-				`${API}/api/Ar/${encodeURIComponent(cleanArCode)}`,
+				`https://i3p-server-1.onrender.com/api/Ar/${encodeURIComponent(cleanArCode)}`,
 				{ headers: { Authorization: `Bearer ${token}` } },
 			);
 			if (res.status === 404) {
@@ -575,6 +573,11 @@ export default function ArDetailPage({
 	}, [arCode, token]);
 
 	useEffect(() => {
+		const params = new URLSearchParams(window.location.search);
+		const code = params.get("code");
+		if (code) {
+			$currentArCode.set(code);
+		}
 		fetchDetail();
 	}, [fetchDetail]);
 
@@ -583,7 +586,7 @@ export default function ArDetailPage({
 		openImg();
 	};
 
-	if (loading)
+	if (loading || !arCode)
 		return (
 			<div className="flex justify-center items-center h-64">
 				<Spinner label="Loading AR details…" />
