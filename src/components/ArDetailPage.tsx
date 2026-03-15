@@ -737,6 +737,7 @@ export default function ArDetailPage({
 						<TableColumn className="text-right w-28">Price</TableColumn>
 						<TableColumn className="text-right w-32">Total</TableColumn>
 						<TableColumn className="w-52">Photo / Status</TableColumn>
+						<TableColumn className="w-52">Implemented/Verified</TableColumn>
 					</TableHeader>
 					<TableBody
 						emptyContent={
@@ -785,6 +786,27 @@ export default function ArDetailPage({
 										onRefresh={fetchDetail}
 										onViewPhoto={handleViewPhoto}
 									/>
+								</TableCell>
+								<TableCell className="text-right">
+									{item.isPhotoVerified ? (
+										<Chip
+											variant="flat"
+											color="success"
+											size="sm"
+											className="capitalize border-1 border-success-200"
+										>
+											Implemented
+										</Chip>
+									) : (
+										<Chip
+											variant="flat"
+											color="warning"
+											size="sm"
+											className="capitalize border-1 border-warning-200 text-warning-700"
+										>
+											Pending Verification
+										</Chip>
+									)}
 								</TableCell>
 							</TableRow>
 						))}
