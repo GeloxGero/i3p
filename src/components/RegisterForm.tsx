@@ -43,17 +43,20 @@ export default function RegisterForm() {
 		$isAuthLoading.set(true);
 		$authError.set(null);
 		try {
-			const res = await fetch("http://localhost:5109/api/user/CreateUser", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					Name: name,
-					Email: email,
-					PasswordHash: password,
-					Authority: 0,
-					Photo: null,
-				}),
-			});
+			const res = await fetch(
+				"https://i3p-server-1.onrender.com/api/user/CreateUser",
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						Name: name,
+						Email: email,
+						PasswordHash: password,
+						Authority: 0,
+						Photo: null,
+					}),
+				},
+			);
 			if (!res.ok) {
 				const d = await res.json();
 				$authError.set(d.message || "Registration failed");

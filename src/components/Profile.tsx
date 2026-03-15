@@ -29,9 +29,12 @@ export default function Profile() {
 
 		(async () => {
 			try {
-				const res = await fetch("http://localhost:5109/api/user/GetProfile", {
-					headers: { Authorization: `Bearer ${token}` },
-				});
+				const res = await fetch(
+					"https://i3p-server-1.onrender.com/api/user/GetProfile",
+					{
+						headers: { Authorization: `Bearer ${token}` },
+					},
+				);
 				if (res.ok) {
 					const d = await res.json();
 					setProfile(d);

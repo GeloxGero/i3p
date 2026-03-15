@@ -388,7 +388,9 @@ export default function Charts() {
 	};
 
 	if (loadingList)
-		return <div className="p-8 text-default-500">Loading plans…</div>;
+		return (
+			<Spinner classNames={{ label: "text-foreground mt-4" }} variant="wave" />
+		);
 
 	return (
 		<div className="flex flex-col gap-6 p-6">

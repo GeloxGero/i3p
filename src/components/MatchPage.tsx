@@ -71,7 +71,7 @@ interface Summary {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const BASE = "http://localhost:5109/api/PlanCrossReference";
+const BASE = "https://i3p-server-1.onrender.com/api/PlanCrossReference";
 
 function statusLabel(n: number): CrossRefStatus {
 	return STATUS_MAP[n] ?? "Unmatched";

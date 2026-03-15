@@ -106,7 +106,7 @@ export default function Sidebar({ pathname }: Props) {
 
 	useEffect(() => {
 		if (!token) return;
-		fetch("http://localhost:5109/api/PlanCrossReference/pending", {
+		fetch("https://i3p-server-1.onrender.com/api/PlanCrossReference/pending", {
 			headers: { Authorization: `Bearer ${token}` },
 		})
 			.then((r) => r.json())

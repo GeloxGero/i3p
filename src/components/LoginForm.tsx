@@ -12,7 +12,7 @@ export default function LoginForm() {
 	useEffect(() => {
 		const t = $token.get();
 		if (!t) return;
-		fetch("http://localhost:5109/api/user/GetProfile", {
+		fetch("https://i3p-server-1.onrender.com/api/user/GetProfile", {
 			headers: { Authorization: `Bearer ${t}` },
 		})
 			.then((r) => {
@@ -30,11 +30,14 @@ export default function LoginForm() {
 		$isAuthLoading.set(true);
 		setErr("");
 		try {
-			const res = await fetch("http://localhost:5109/api/user/Login", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ email, password }),
-			});
+			const res = await fetch(
+				"https://i3p-server-1.onrender.com/api/user/Login",
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ email, password }),
+				},
+			);
 			const data = await res.json();
 			if (res.ok) {
 				$token.set(data.token);

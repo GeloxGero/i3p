@@ -381,11 +381,14 @@ export default function AnnualPlanTable() {
 		const formData = new FormData();
 		formData.append("file", fileToUpload);
 		try {
-			const res = await fetch(`${API}/api/AnnualProcurementPlan/import`, {
-				method: "POST",
-				headers: { Authorization: `Bearer ${token}` },
-				body: formData,
-			});
+			const res = await fetch(
+				`https://i3p-server-1.onrender.com/api/AnnualProcurementPlan/import`,
+				{
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: formData,
+				},
+			);
 			if (!res.ok) {
 				const msg = await res.text();
 				toast.error("Import failed", msg);
@@ -408,9 +411,12 @@ export default function AnnualPlanTable() {
 	const fetchPlanHeaders = async () => {
 		setLoadingHeaders(true);
 		try {
-			const res = await fetch(`${API}/api/AnnualProcurementPlan`, {
-				headers: { Authorization: `Bearer ${token}` },
-			});
+			const res = await fetch(
+				`https://i3p-server-1.onrender.com/api/AnnualProcurementPlan`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				},
+			);
 			const data = await res.json();
 			setPlanHeaders(data);
 			if (data.length > 0 && !selectedPlan) fetchPlanById(String(data[0].id));
@@ -422,9 +428,12 @@ export default function AnnualPlanTable() {
 	const fetchPlanById = async (planId: string) => {
 		setLoadingItems(true);
 		try {
-			const res = await fetch(`${API}/api/AnnualProcurementPlan/${planId}`, {
-				headers: { Authorization: `Bearer ${token}` },
-			});
+			const res = await fetch(
+				`https://i3p-server-1.onrender.com/api/AnnualProcurementPlan/${planId}`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				},
+			);
 			const data: AnnualPlan = await res.json();
 			setSelectedPlan(data);
 		} finally {
@@ -576,7 +585,10 @@ export default function AnnualPlanTable() {
 			{/* ── Main Content ── */}
 			{loadingItems ? (
 				<div className="flex justify-center p-10">
-					<Spinner label="Loading plan items..." />
+					<Spinner
+						classNames={{ label: "text-foreground mt-4" }}
+						variant="wave"
+					/>
 				</div>
 			) : selectedPlan ? (
 				<div className="flex flex-col gap-3 sm:gap-4">

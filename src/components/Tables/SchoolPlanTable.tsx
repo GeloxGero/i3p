@@ -320,6 +320,7 @@ function MobileItemCard({ item }: { item: SchoolPlanItem }) {
 		item.status === "Approved" ||
 		item.status === (1 as any) ||
 		item.status === "1";
+
 	return (
 		<div className="border border-default-200 rounded-xl p-3 flex flex-col gap-2 bg-background">
 			<div className="flex items-start justify-between gap-2">
@@ -335,34 +336,45 @@ function MobileItemCard({ item }: { item: SchoolPlanItem }) {
 					{isApproved ? "Verified" : "Implemented"}
 				</Chip>
 			</div>
+
+			{/* KRA Area context */}
 			{item.kraArea && (
 				<p className="text-xs text-default-400">{item.kraArea}</p>
 			)}
-			<div className="flex items-center justify-between">
-				<span className="text-xs text-default-500">
+
+			{/* NEW: AR Code Section - Positioned as a secondary tag */}
+			{item.arCode && (
+				<div className="flex items-center gap-1.5">
+					<span className="text-[10px] uppercase font-bold text-default-400 tracking-tight">
+						AR Code:
+					</span>
+					<a
+						href={`/projects/${encodeURIComponent(item.arCode)}`}
+						className="text-xs font-mono font-semibold text-primary hover:text-primary-400 transition-colors underline underline-offset-2 flex items-center gap-1"
+					>
+						{item.arCode}
+						{item.isVerified ? (
+							<span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-success text-white text-[8px] font-bold">
+								✓
+							</span>
+						) : (
+							<span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-warning/20 text-warning-700 text-[8px] font-bold border border-warning/30">
+								!
+							</span>
+						)}
+					</a>
+				</div>
+			)}
+
+			{/* Footer row with Account Title and Cost */}
+			<div className="flex items-center justify-between mt-1 pt-1 border-t border-default-50">
+				<span className="text-xs text-default-500 truncate max-w-[60%]">
 					{item.accountTitle || "—"}
 				</span>
-				<span className="text-sm font-semibold text-primary">
+				<span className="text-sm font-bold text-primary">
 					{item.estimatedCost > 0 ? fmt(item.estimatedCost) : "—"}
 				</span>
 			</div>
-			{item.arCode && (
-				<a
-					href={`/projects/${encodeURIComponent(item.arCode)}`}
-					className="text-xs font-mono text-primary underline underline-offset-2"
-				>
-					{item.arCode}
-					{item.isVerified ? (
-						<span className="ml-1 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-success text-white text-[8px] font-bold">
-							✓
-						</span>
-					) : (
-						<span className="ml-1 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-warning/20 text-warning-700 text-[8px] font-bold">
-							!
-						</span>
-					)}
-				</a>
-			)}
 		</div>
 	);
 }
@@ -408,7 +420,7 @@ function StatusCell({ row }: { row: SchoolPlanItem }) {
 			variant="flat"
 			color={row.isVerified ? "success" : "warning"}
 		>
-			{row.isVerified ? "Verified" : "Implemented"}
+			{row.isVerified ? "Approved" : "Implemented"}
 		</Chip>
 	);
 }
@@ -1060,28 +1072,31 @@ function AddItemModal({
 		if (!form.activity || !form.estimatedCost) return;
 		setSaving(true);
 		try {
-			await fetch(`${API}/api/SchoolImplementation/item`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${token}`,
+			await fetch(
+				`https://i3p-server-1.onrender.com/api/SchoolImplementation/item`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						date: form.date,
+						kra: form.kra || null,
+						sipProgram: form.sipProgram || "Unimplemented",
+						activity: form.activity,
+						purpose: form.purpose || null,
+						indicator: form.indicator || null,
+						resources: form.resources || null,
+						quantity: form.quantity || null,
+						estimatedCost: parseFloat(form.estimatedCost) || 0,
+						accountTitle: form.accountTitle || null,
+						accountCode: form.accountCode || null,
+						expenditureType: form.expenditureType,
+						status: form.status === "Approved" ? 1 : 0,
+					}),
 				},
-				body: JSON.stringify({
-					date: form.date,
-					kra: form.kra || null,
-					sipProgram: form.sipProgram || "Unimplemented",
-					activity: form.activity,
-					purpose: form.purpose || null,
-					indicator: form.indicator || null,
-					resources: form.resources || null,
-					quantity: form.quantity || null,
-					estimatedCost: parseFloat(form.estimatedCost) || 0,
-					accountTitle: form.accountTitle || null,
-					accountCode: form.accountCode || null,
-					expenditureType: form.expenditureType,
-					status: form.status === "Approved" ? 1 : 0,
-				}),
-			});
+			);
 			setForm(blank);
 			onAdded();
 			onClose();
@@ -1223,6 +1238,58 @@ function AddItemModal({
 	);
 }
 
+function SeedFakeBanner({
+	planId,
+	items,
+	token,
+	onDone,
+}: {
+	planId: string;
+	items: SchoolPlanItem[];
+	token: string | null;
+	onDone: () => void;
+}) {
+	const [loading, setLoading] = useState(false);
+
+	const seed = async () => {
+		setLoading(true);
+		try {
+			// Seed for the first unlinked item as a demo
+			await fetch(
+				`https://i3p-server-1.onrender.com/api/Ar/seed-fake-links/${items[0].id}`,
+				{
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+				},
+			);
+			onDone();
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	return (
+		<div className="flex items-center gap-3 px-4 py-2.5 bg-warning-50 border border-warning-200 rounded-xl text-sm">
+			<span className="text-warning-700 font-medium">
+				{items.length} SIP item{items.length !== 1 ? "s" : ""} without an AR
+				code.
+			</span>
+			<Button
+				size="sm"
+				color="warning"
+				variant="flat"
+				isLoading={loading}
+				onPress={seed}
+			>
+				Seed fake APP items (dev)
+			</Button>
+			<span className="text-warning-500 text-xs">
+				Generates 3 test APP items linked to the first unlinked row.
+			</span>
+		</div>
+	);
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SchoolPlanTable() {
@@ -1291,11 +1358,14 @@ export default function SchoolPlanTable() {
 		const formData = new FormData();
 		formData.append("file", fileToUpload);
 		try {
-			const res = await fetch(`${API}/api/SchoolImplementation/import`, {
-				method: "POST",
-				headers: { Authorization: `Bearer ${token}` },
-				body: formData,
-			});
+			const res = await fetch(
+				`https://i3p-server-1.onrender.com/api/SchoolImplementation/import`,
+				{
+					method: "POST",
+					headers: { Authorization: `Bearer ${token}` },
+					body: formData,
+				},
+			);
 			if (!res.ok) {
 				toast.error("Import failed", await res.text());
 				return;
@@ -1317,9 +1387,12 @@ export default function SchoolPlanTable() {
 	const fetchPlanHeaders = async () => {
 		setLoadingHeaders(true);
 		try {
-			const res = await fetch(`${API}/api/SchoolImplementation`, {
-				headers: { Authorization: `Bearer ${token}` },
-			});
+			const res = await fetch(
+				`https://i3p-server-1.onrender.com/api/SchoolImplementation`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				},
+			);
 			const data: SchoolPlanHeader[] = await res.json();
 			setPlanHeaders(data);
 			if (data.length > 0 && !selectedPlan) fetchPlanById(data[0].id);
@@ -1331,9 +1404,12 @@ export default function SchoolPlanTable() {
 	const fetchPlanById = async (planId: string) => {
 		setLoadingItems(true);
 		try {
-			const res = await fetch(`${API}/api/SchoolImplementation/${planId}`, {
-				headers: { Authorization: `Bearer ${token}` },
-			});
+			const res = await fetch(
+				`https://i3p-server-1.onrender.com/api/SchoolImplementation/${planId}`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				},
+			);
 			const data: SchoolPlan = await res.json();
 			setSelectedPlan(data);
 			setActiveMonth(data.months?.[0]?.month ?? "January");
@@ -1357,6 +1433,10 @@ export default function SchoolPlanTable() {
 		(m) => m.month === previewActiveMonth,
 	);
 
+	// Items in the active month that have no AR code yet (for dev seeding)
+	const unlinkedItems = (activeSheet?.items ?? []).filter(
+		(i) => !i.arCode && i.id != null,
+	);
 	if (loadingHeaders)
 		return <div className="p-4 sm:p-8 text-default-500">Loading plans...</div>;
 
@@ -1479,7 +1559,10 @@ export default function SchoolPlanTable() {
 			{/* ── Main Content ── */}
 			{loadingItems ? (
 				<div className="flex justify-center p-10">
-					<Spinner label="Loading plan items..." />
+					<Spinner
+						classNames={{ label: "text-foreground mt-4" }}
+						variant="wave"
+					/>
 				</div>
 			) : selectedPlan ? (
 				<div className="flex flex-col gap-3 sm:gap-4">
@@ -1510,7 +1593,16 @@ export default function SchoolPlanTable() {
 									annualBudget={selectedPlan.annualBudget}
 								/>
 							)}
-
+							{/* ── Dev seed banner ── */}
+							{/* 2. Responsive Seed Banner (Mobile-Optimized) */}
+							{unlinkedItems.length > 0 && (
+								<SeedFakeBanner
+									planId={selectedPlan.id}
+									items={unlinkedItems}
+									token={token}
+									onDone={() => fetchPlanById(selectedPlan.id)}
+								/>
+							)}
 							{/* ── Secondary toolbar — Columns, Templates, Add Item — separate from budget card ── */}
 							{activeSheet && (
 								<div className="flex items-center gap-2 flex-wrap border border-default-200 rounded-xl px-4 py-2.5 bg-default-50/50">

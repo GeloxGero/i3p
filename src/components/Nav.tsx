@@ -36,7 +36,7 @@ export default function Nav() {
 	// Fetch profile on mount if we have a token but no cached profile yet
 	useEffect(() => {
 		if (!token || profile) return;
-		fetch("http://localhost:5109/api/user/GetProfile", {
+		fetch("https://i3p-server-1.onrender.com/api/user/GetProfile", {
 			headers: { Authorization: `Bearer ${token}` },
 		})
 			.then((r) => (r.ok ? r.json() : null))
