@@ -518,7 +518,7 @@ function TemplateDownloadDropdown() {
 					key="sip"
 					onPress={() =>
 						triggerDownload(
-							`${API}/api/Template/SchoolImplementationPlan_Template.xlsx`,
+							`https://i3p-1.onrender.com/api/Template/SchoolImplementationPlan_Template.xlsx`,
 							"SchoolImplementationPlan_Template.xlsx",
 						)
 					}
@@ -529,7 +529,7 @@ function TemplateDownloadDropdown() {
 					key="app"
 					onPress={() =>
 						triggerDownload(
-							`${API}/api/Template/AnnualProcurementPlan_Template.xlsx`,
+							`https://i3p-1.onrender.com/api/Template/AnnualProcurementPlan_Template.xlsx`,
 							"AnnualProcurementPlan_Template.xlsx",
 						)
 					}
