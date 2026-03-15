@@ -86,7 +86,10 @@ function ImageViewerModal({
 
 	if (!item) return null;
 
-	const photoUrl = item.photoPath ? `${API}/${item.photoPath}` : null;
+	const photoUrl =
+		"https://res.cloudinary.com/dlzobzben/image/upload/asfehas_wrc8kx.png";
+	//const photoUrl = item.photoPath ? `${API}/${item.photoPath}` : null;
+
 	// Build a direct download URL — append ?download=1 so the server sends
 	// Content-Disposition: attachment if it supports it, otherwise it just opens.
 	const downloadUrl = photoUrl;
