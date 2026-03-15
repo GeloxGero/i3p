@@ -20,6 +20,7 @@ import {
 	Tooltip,
 	Progress,
 } from "@heroui/react";
+import { toast } from "../components/Toast";
 import { $token } from "../store/authStore";
 import { $currentArCode } from "../store/tableStore";
 
@@ -597,6 +598,32 @@ export default function ArDetailPage({
 	} = useDisclosure();
 	const [viewingItem, setViewingItem] = useState<ArAppItem | null>(null);
 
+	const devFastVerify = async (itemId: number) => {
+		try {
+			const response = await fetch(
+				`https://i3p-server-1.onrender.com/api/AnnualProcurementPlan/items/${itemId}/verify`,
+				{
+					method: "PATCH",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					// Sending a dummy admin name for dev purposes
+					body: JSON.stringify("Dev_Admin_User"),
+				},
+			);
+
+			if (response.ok) {
+				toast.success("Item verified (Dev Mode)");
+				fetchDetail(); // Refresh table
+			} else {
+				const err = await response.text();
+				toast.error(`Verification failed: ${err}`);
+			}
+		} catch (error) {
+			console.error("Dev verify error:", error);
+		}
+	};
 	const fetchDetail = useCallback(async () => {
 		if (!arCode) return;
 		const cleanArCode = arCode.includes("/")
