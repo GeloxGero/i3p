@@ -313,6 +313,8 @@ function ImageViewerModal({
 
 // ─── Photo Cell ───────────────────────────────────────────────────────────────
 
+// ─── Photo Cell ───────────────────────────────────────────────────────────────
+
 function PhotoCell({
 	item,
 	token,
@@ -326,6 +328,7 @@ function PhotoCell({
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
+	const [verifying, setVerifying] = useState(false);
 
 	const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -333,7 +336,6 @@ function PhotoCell({
 
 		setUploading(true);
 		const fd = new FormData();
-		// Changed key from "photo" to "file" to match the C# parameter 'IFormFile file'
 		fd.append("file", file);
 
 		try {
@@ -342,7 +344,6 @@ function PhotoCell({
 				{
 					method: "POST",
 					headers: {
-						// Note: Do not manually set Content-Type for FormData; the browser does it
 						Authorization: `Bearer ${token}`,
 					},
 					body: fd,
@@ -359,6 +360,27 @@ function PhotoCell({
 		} finally {
 			setUploading(false);
 			e.target.value = "";
+		}
+	};
+
+	const verify = async () => {
+		if (!token || !item.photoPath) return;
+		setVerifying(true);
+		try {
+			await fetch(
+				`https://i3p-server-1.onrender.com/api/Ar/verify-photo/${item.id}`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({ verifiedBy: "admin" }),
+				},
+			);
+			onRefresh();
+		} finally {
+			setVerifying(false);
 		}
 	};
 
@@ -381,6 +403,15 @@ function PhotoCell({
 	if (item.photoPath) {
 		return (
 			<div className="flex items-center gap-2 flex-wrap">
+				<Button
+					size="sm"
+					variant="flat"
+					color="success"
+					isLoading={verifying}
+					onPress={verify}
+				>
+					✓ Verify
+				</Button>
 				<button
 					onClick={() => onViewPhoto(item)}
 					className="text-xs text-primary underline hover:text-primary-600 transition-colors font-medium"
