@@ -347,6 +347,8 @@ function MobileItemCard({ item }: { item: SchoolPlanItem }) {
 		item.status === (1 as any) ||
 		item.status === "1";
 
+	const isPending = item.status === (3 as any);
+
 	return (
 		<div className="border border-default-200 rounded-xl p-3 flex flex-col gap-2 bg-background">
 			<div className="flex items-start justify-between gap-2">
@@ -359,7 +361,7 @@ function MobileItemCard({ item }: { item: SchoolPlanItem }) {
 					color={isApproved ? "success" : "warning"}
 					className="shrink-0"
 				>
-					{isApproved ? "Verified" : "Implemented"}
+					{isApproved ? "Verified" : "Pending Verification"}
 				</Chip>
 			</div>
 
@@ -1633,7 +1635,7 @@ export default function SchoolPlanTable() {
 									<TemplateDownloadDropdown />
 									<div className="flex-1" />
 									<Button color="success" size="sm" onPress={openAddItem}>
-										+ Add Item
+										+ Add Line Item
 									</Button>
 								</div>
 							)}
