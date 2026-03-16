@@ -324,7 +324,7 @@ function SummaryCards({ plan }: { plan: PlanDetail }) {
 					</div>
 					<div className="bg-default-50 border border-default-200 rounded-2xl p-4 flex flex-col gap-1">
 						<span className="text-xs text-default-400 uppercase tracking-wide">
-							Utilisation
+							Utilization
 						</span>
 						<span
 							className={`text-xl font-bold ${(utilPct ?? 0) > 100 ? "text-danger-600" : "text-default-700"}`}
