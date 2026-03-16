@@ -538,7 +538,7 @@ function TemplateDownloadDropdown() {
 		<Dropdown>
 			<DropdownTrigger>
 				<Button variant="flat" size="sm">
-					Templates
+					Download Templates
 				</Button>
 			</DropdownTrigger>
 			<DropdownMenu aria-label="Download Excel templates">
@@ -546,9 +546,9 @@ function TemplateDownloadDropdown() {
 					key="app"
 					as="a"
 					href="https://res.cloudinary.com/dlzobzben/raw/upload/v1773595856/AnnualProcurementPlan_Template_tep3fq.xlsx"
-					download="SchoolImplementationPlan_Template.xlsx"
+					download="AnnualProcurementPlan_Template.xlsx"
 				>
-					Annual Procurement Plan
+					Download Annual Procurement Plan
 				</DropdownItem>
 				<DropdownItem
 					key="app"
