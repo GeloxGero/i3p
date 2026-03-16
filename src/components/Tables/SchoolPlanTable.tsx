@@ -197,40 +197,7 @@ function normalizeMonthName(n: string) {
 	const t = n.trim().toLowerCase();
 	return MONTH_NAMES.find((m) => m.toLowerCase() === t) ?? n.trim();
 }
-async function triggerDownload(url: string, filename: string) {
-	try {
-		// 1. Fetch the data manually
-		const response = await fetch(url, {
-			method: "GET",
-		});
 
-		if (!response.ok) {
-			throw new Error(
-				`Failed to download: ${response.status} ${response.statusText}`,
-			);
-		}
-
-		// 2. Convert the response to a Blob (Binary Large Object)
-		const blob = await response.blob();
-
-		// 3. Create a local URL representing that data
-		const localUrl = window.URL.createObjectURL(blob);
-
-		// 4. Trigger the download using the local URL
-		const a = document.createElement("a");
-		a.href = localUrl;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-
-		// 5. Cleanup
-		document.body.removeChild(a);
-		window.URL.revokeObjectURL(localUrl);
-	} catch (error) {
-		console.error("Download error:", error);
-		// Optional: show a toast or alert to the user here
-	}
-}
 function parseCost(raw: unknown): number {
 	return parseFloat(String(raw ?? "").replace(/[₱,\s]/g, "")) || 0;
 }

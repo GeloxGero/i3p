@@ -359,13 +359,21 @@ export default function Charts() {
 					headers: { Authorization: `Bearer ${token}` },
 				},
 			);
-			const data = res.json();
-			setHeaders(await res.json());
-			return data;
+
+			// Read the body ONCE here
+			const data: PlanHeader[] = await res.json();
+			setHeaders(data);
+
+			// If there's data and no plan is selected yet, load the first one
+			if (data.length > 0 && !selectedPlan) {
+				fetchPlan(data[0].id.toString());
+			}
+		} catch (error) {
+			console.error("Error fetching headers:", error);
 		} finally {
 			setLoadingList(false);
 		}
-	}, [token]);
+	}, [token, selectedPlan]);
 
 	const fetchPlan = async (id: string) => {
 		setLoadingPlan(true);
@@ -383,13 +391,6 @@ export default function Charts() {
 	};
 
 	useEffect(() => {
-		fetchHeaders().then((data) => {
-			if (data && data.length > 0) {
-				// Select the first plan in the list by default
-				const firstPlanId = data[0].id.toString();
-				fetchPlan(firstPlanId);
-			}
-		});
 		fetchHeaders();
 	}, [fetchHeaders]);
 
