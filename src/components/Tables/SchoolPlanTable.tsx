@@ -604,6 +604,9 @@ function MonthTable({
 			{categories.map((cat) => {
 				const catItems = sheet.items.filter((i) => i.category === cat);
 				const subtotal = sheet.subTotals[cat];
+				const itemsWithArCode = catItems.filter(
+					(item) => item.arCode && item.arCode.trim() !== "",
+				);
 				return (
 					<div key={cat} className="flex flex-col gap-2">
 						<div className="flex items-center gap-2">
@@ -615,14 +618,14 @@ function MonthTable({
 								color={CATEGORY_COLORS[cat] ?? "default"}
 								variant="flat"
 							>
-								{CATEGORY_LABELS[cat] ?? cat} · {catItems.length}
+								{CATEGORY_LABELS[cat] ?? cat} · {itemsWithArCode.length}
 							</Chip>
 						</div>
 
 						{/* Mobile: card list */}
 						{isMobile ? (
 							<div className="flex flex-col gap-2">
-								{catItems.map((item, idx) => (
+								{itemsWithArCode.map((item, idx) => (
 									<MobileItemCard key={idx} item={item} />
 								))}
 								{subtotal !== undefined && (
@@ -635,7 +638,7 @@ function MonthTable({
 										</span>
 									</div>
 								)}
-								{catItems.length === 0 && (
+								{itemsWithArCode.length === 0 && (
 									<p className="text-xs text-default-400 px-1">No items.</p>
 								)}
 							</div>
@@ -656,7 +659,7 @@ function MonthTable({
 									<TableBody
 										emptyContent="No items."
 										items={[
-											...catItems.map(
+											...itemsWithArCode.map(
 												(item, idx) =>
 													({ ...item, _rowKey: `item-${idx}` }) as TableRowData,
 											),
