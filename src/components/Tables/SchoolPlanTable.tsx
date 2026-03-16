@@ -534,6 +534,14 @@ function ColumnChooser({
 }
 
 function TemplateDownloadDropdown() {
+	const handleDownload = (url: string, filename: string) => {
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = filename;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	};
 	return (
 		<Dropdown>
 			<DropdownTrigger>
@@ -541,21 +549,25 @@ function TemplateDownloadDropdown() {
 					Download Templates
 				</Button>
 			</DropdownTrigger>
-			<DropdownMenu aria-label="Download Excel templates">
-				<DropdownItem
-					key="app"
-					as="a"
-					href="https://res.cloudinary.com/dlzobzben/raw/upload/v1773595856/AnnualProcurementPlan_Template_tep3fq.xlsx"
-					download="AnnualProcurementPlan_Template.xlsx"
-				>
-					Download Annual Procurement Plan
-				</DropdownItem>
-				<DropdownItem
-					key="apc"
-					as="a"
-					href="https://res.cloudinary.com/dlzobzben/raw/upload/fl_attachment/v1773595856/SchoolImplementationPlan_Template_vn7ijg.xlsx"
-					download="SchoolImplementationPlan_Template.xlsx"
-				>
+			<DropdownMenu
+				aria-label="Download Excel templates"
+				onAction={(key) => {
+					if (key === "app") {
+						handleDownload(
+							"https://res.cloudinary.com/dlzobzben/raw/upload/v1773595856/AnnualProcurementPlan_Template_tep3fq.xlsx",
+							"AnnualProcurementPlan_Template.xlsx",
+						);
+					}
+					if (key === "apc") {
+						handleDownload(
+							"https://res.cloudinary.com/dlzobzben/raw/upload/fl_attachment/v1773595856/SchoolImplementationPlan_Template_vn7ijg.xlsx",
+							"SchoolImplementationPlan_Template.xlsx",
+						);
+					}
+				}}
+			>
+				<DropdownItem key="app">Download Annual Procurement Plan</DropdownItem>
+				<DropdownItem key="apc">
 					Download School Implementation Plan
 				</DropdownItem>
 			</DropdownMenu>
