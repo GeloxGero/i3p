@@ -46,7 +46,7 @@ interface SchoolPlanItem {
 	category: string;
 	arCode?: string | null;
 	isVerified?: boolean;
-	status?: "Implemented" | "Approved" | string | number;
+	status?: "Implemented" | "Verified" | string | number;
 }
 
 type TableRowData = SchoolPlanItem & {
@@ -448,7 +448,7 @@ function StatusCell({ row }: { row: SchoolPlanItem }) {
 			variant="flat"
 			color={row.isVerified ? "success" : "warning"}
 		>
-			{row.isVerified ? "Approved" : "Implemented"}
+			{row.isVerified ? "Verified" : "Pending Verification"}
 		</Chip>
 	);
 }
@@ -1252,7 +1252,7 @@ function AddItemModal({
 						onPress={save}
 						isDisabled={!form.activity || !form.estimatedCost}
 					>
-						Add Item
+						Add Line Item
 					</Button>
 				</ModalFooter>
 			</ModalContent>
