@@ -421,7 +421,6 @@ export default function Charts() {
 					<Select
 						label="Select Plan Year"
 						className="w-72"
-						selectedKeys={selectedPlan ? [selectedPlan.id.toString()] : []}
 						onSelectionChange={(keys) => {
 							const id = Array.from(keys)[0] as string;
 							if (id) fetchPlan(id);
