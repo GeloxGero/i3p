@@ -359,7 +359,9 @@ export default function Charts() {
 					headers: { Authorization: `Bearer ${token}` },
 				},
 			);
+			const data = res.json();
 			setHeaders(await res.json());
+			return data;
 		} finally {
 			setLoadingList(false);
 		}
@@ -381,6 +383,13 @@ export default function Charts() {
 	};
 
 	useEffect(() => {
+		fetchHeaders().then((data) => {
+			if (data && data.length > 0) {
+				// Select the first plan in the list by default
+				const firstPlanId = data[0].id.toString();
+				fetchPlan(firstPlanId);
+			}
+		});
 		fetchHeaders();
 	}, [fetchHeaders]);
 
@@ -412,6 +421,7 @@ export default function Charts() {
 					<Select
 						label="Select Plan Year"
 						className="w-72"
+						selectedKeys={selectedPlan ? [selectedPlan.id.toString()] : []}
 						onSelectionChange={(keys) => {
 							const id = Array.from(keys)[0] as string;
 							if (id) fetchPlan(id);
