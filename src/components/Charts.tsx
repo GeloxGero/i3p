@@ -450,7 +450,7 @@ export default function Charts() {
 						{selectedPlan.annualBudget != null && (
 							<div className="flex flex-col gap-3 bg-default-50 border border-default-200 rounded-2xl p-5">
 								<h3 className="text-sm font-semibold text-default-600 uppercase tracking-wide">
-									Budget Utilisation
+									Budget Utilization
 								</h3>
 								<div className="flex justify-center">
 									<BudgetGauge
