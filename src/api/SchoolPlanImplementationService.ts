@@ -1,7 +1,7 @@
 // src/api/schoolService.ts
 import { apiRequest } from "./Auth";
 
-export const schoolService = {
+export const schoolPlanImplementationService = {
 	// GET: Fetch headers
 	getHeaders: (token: string | null) =>
 		apiRequest("api/SchoolImplementation", {}, token),

@@ -1,5 +1,7 @@
 import { $serverApi } from "../store/configStore";
 
+//this file is inherited by all Apis to make sure token is always checked before any calls
+//automatically concatenates the base url whether localhost or hosted from the .env file
 export async function apiRequest(
 	endpoint: string,
 	options: RequestInit = {},
