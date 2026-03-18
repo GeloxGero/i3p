@@ -22,6 +22,7 @@ import {
 } from "@heroui/react";
 import { $token } from "../store/authStore";
 import { $currentArCode } from "../store/tableStore";
+import { apiRequest } from "../api/TokenService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -98,8 +99,8 @@ function ImageViewerModal({
 	const verify = async () => {
 		setVerifying(true);
 		try {
-			await fetch(
-				`https://i3p-server-1.onrender.com/api/Ar/verify-photo/${item.id}`,
+			await apiRequest(
+				`api/Ar/verify-photo/${item.id}`,
 				{
 					method: "POST",
 					headers: {
@@ -108,6 +109,7 @@ function ImageViewerModal({
 					},
 					body: JSON.stringify({ verifiedBy: "admin" }),
 				},
+				token,
 			);
 			onVerified();
 			onClose();
@@ -336,11 +338,14 @@ function PhotoCell({
 		setUploading(true);
 		const fd = new FormData();
 		fd.append("photo", file);
-		await fetch(`https://i3p-server-1.onrender.com/api/Ar/photo/${item.id}`, {
-			method: "POST",
-			headers: { Authorization: `Bearer ${token}` },
-			body: fd,
-		});
+		await apiRequest(
+			`api/Ar/photo/${item.id}`,
+			{
+				method: "POST",
+				body: fd,
+			},
+			token,
+		);
 		setUploading(false);
 		onRefresh();
 		e.target.value = "";
@@ -431,8 +436,8 @@ function AddItemModal({
 	const save = async () => {
 		setSaving(true);
 		try {
-			await fetch(
-				`https://i3p-server-1.onrender.com/api/Ar/add-item/${sipItemId}`,
+			await apiRequest(
+				`api/Ar/add-item/${sipItemId}`,
 				{
 					method: "POST",
 					headers: {
@@ -447,6 +452,7 @@ function AddItemModal({
 						price: Number(form.price) || null,
 					}),
 				},
+				token,
 			);
 			setForm(blank);
 			onAdded();
@@ -560,16 +566,23 @@ export default function ArDetailPage({
 			: arCode;
 		setLoading(true);
 		try {
-			const res = await fetch(
-				`https://i3p-server-1.onrender.com/api/Ar/${encodeURIComponent(cleanArCode)}`,
-				{ headers: { Authorization: `Bearer ${token}` } },
+			setDetail(
+				await apiRequest(
+					`api/Ar/${encodeURIComponent(cleanArCode)}`,
+					{},
+					token,
+				),
 			);
-			if (res.status === 404) {
-				setNotFound(true);
-				return;
-			}
-			setDetail(await res.json());
 			setNotFound(false);
+		} catch (err: any) {
+			// 2. Handle the error thrown by apiRequest
+			// Note: You'll need to check if the error message contains '404'
+			// or refine your apiRequest to throw specific error types.
+			if (err.message.includes("404") || err.message.includes("Not Found")) {
+				setNotFound(true);
+			} else {
+				console.error("Fetch error:", err);
+			}
 		} finally {
 			setLoading(false);
 		}
@@ -596,7 +609,9 @@ export default function ArDetailPage({
 			</div>
 		);
 
-	if (notFound || !detail)
+	if (notFound || !detail) {
+		if (notFound) console.log("No Ar Codes Found");
+		if (!detail) console.log("No details found");
 		return (
 			<div className="p-10 text-center">
 				<p className="text-default-400 text-lg mb-2">AR code not found</p>
@@ -606,6 +621,7 @@ export default function ArDetailPage({
 				</Button>
 			</div>
 		);
+	}
 
 	const verificationPct =
 		detail.totalCount > 0

@@ -1,5 +1,5 @@
 // src/api/schoolService.ts
-import { apiRequest } from "./Auth";
+import { apiRequest } from "./TokenService";
 
 export const schoolPlanImplementationService = {
 	// GET: Fetch headers

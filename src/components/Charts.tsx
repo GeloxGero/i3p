@@ -28,6 +28,7 @@ import {
 	Title,
 } from "chart.js";
 import { Pie, Bar } from "react-chartjs-2";
+import { apiRequest } from "../api/TokenService";
 
 ChartJS.register(
 	ArcElement,
@@ -63,8 +64,6 @@ interface PlanDetail {
 	annualBudget: number | null;
 	months: MonthSheet[];
 }
-
-const API = "https://i3p-server-1.onrender.com";
 
 const CATEGORY_COLORS: Record<string, string> = {
 	"Regular Expenditure": "#3b82f6",
@@ -353,15 +352,11 @@ export default function Charts() {
 	const fetchHeaders = useCallback(async () => {
 		setLoadingList(true);
 		try {
-			const res = await fetch(
-				`https://i3p-server-1.onrender.com/api/SchoolImplementation`,
-				{
-					headers: { Authorization: `Bearer ${token}` },
-				},
+			const data: PlanHeader[] = await apiRequest(
+				"api/SchoolImplementation",
+				{},
+				token,
 			);
-
-			// Read the body ONCE here
-			const data: PlanHeader[] = await res.json();
 			setHeaders(data);
 
 			// If there's data and no plan is selected yet, load the first one
@@ -378,13 +373,9 @@ export default function Charts() {
 	const fetchPlan = async (id: string) => {
 		setLoadingPlan(true);
 		try {
-			const res = await fetch(
-				`https://i3p-server-1.onrender.com/api/SchoolImplementation/${id}`,
-				{
-					headers: { Authorization: `Bearer ${token}` },
-				},
+			setSelectedPlan(
+				await apiRequest(`api/SchoolImplementation/${id}`, {}, token),
 			);
-			setSelectedPlan(await res.json());
 		} finally {
 			setLoadingPlan(false);
 		}
@@ -583,18 +574,16 @@ function SetBudgetModal({
 		if (!plan) return;
 		setSaving(true);
 		try {
-			const res = await fetch(
-				`https://i3p-server-1.onrender.com/api/SchoolImplementation/${plan.id}/budget`,
+			const updatedPlan = await apiRequest(
+				`/api/SchoolImplementation/${plan.id}/budget`,
 				{
 					method: "PUT",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${token}`,
-					},
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ annualBudget: budget }),
 				},
+				token,
 			);
-			if (res.ok) {
+			if (updatedPlan) {
 				onSaved(budget);
 				onClose();
 			}

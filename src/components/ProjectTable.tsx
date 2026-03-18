@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useStore } from "@nanostores/react";
 import { Tabs, Tab } from "@heroui/react"; // Import HeroUI Tabs
 import { $fileFilter } from "../store/filterStore";
-import AnnualPlanTable from "./Tables/AnnualPlanTable";
-import SchoolPlanTable from "./Tables/SchoolPlanTable";
+import AnnualPlanTable from "./TableViews/AnnualPlanTable";
+import SchoolPlanTable from "../components/TableViews/SchoolPlanTable/SchoolPlanTable";
 
 export default function ProjectTable() {
 	const filter = useStore($fileFilter);
