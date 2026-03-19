@@ -35,6 +35,7 @@ interface ArAppItem {
 	totalQuantity: number | null;
 	price: number | null;
 	totalAmount: number | null;
+	securePhotoUrl: string | null;
 	photoPath: string | null;
 	isPhotoVerified: boolean;
 	verifiedAt: string | null;
@@ -54,8 +55,6 @@ interface ArDetail {
 	verifiedCount: number;
 	totalCount: number;
 }
-
-const API = "https://i3p-server-1.onrender.com";
 
 function fmt(n: number | null | undefined) {
 	if (n == null) return "—";
@@ -87,14 +86,17 @@ function ImageViewerModal({
 
 	if (!item) return null;
 
-	const photoUrl =
-		"https://res.cloudinary.com/dlzobzben/image/upload/v1773600997/asfehas_wrc8kx.png";
+	const photoUrl = item.securePhotoUrl;
 	//const photoUrl = item.photoPath ? `${API}/${item.photoPath}` : null;
 
 	// Build a direct download URL — append ?download=1 so the server sends
 	// Content-Disposition: attachment if it supports it, otherwise it just opens.
-	const downloadUrl = photoUrl;
-	const filename = item.photoPath?.split("/").pop() ?? "receipt";
+
+	//this part contains download logic
+	//----------------------------
+
+	// const downloadUrl = photoUrl;
+	// const filename = item.photoPath?.split("/").pop() ?? "receipt";
 
 	const verify = async () => {
 		setVerifying(true);
@@ -118,16 +120,17 @@ function ImageViewerModal({
 		}
 	};
 
-	const downloadFile = () => {
-		if (!downloadUrl) return;
-		const a = document.createElement("a");
-		a.href = downloadUrl;
-		a.download = filename;
-		a.target = "_blank";
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-	};
+	//download logic to be implemented
+	// const downloadFile = () => {
+	// 	if (!downloadUrl) return;
+	// 	const a = document.createElement("a");
+	// 	a.href = downloadUrl;
+	// 	a.download = filename;
+	// 	a.target = "_blank";
+	// 	document.body.appendChild(a);
+	// 	a.click();
+	// 	document.body.removeChild(a);
+	// };
 
 	return (
 		<Modal
@@ -173,7 +176,7 @@ function ImageViewerModal({
 							</svg>
 							<span className="text-sm">No photo uploaded</span>
 						</div>
-					) : item.photoPath?.toLowerCase().endsWith(".pdf") ? (
+					) : item.securePhotoUrl?.toLowerCase().endsWith(".pdf") ? (
 						// PDF — embed viewer
 						<div className="w-full h-[500px] rounded-xl overflow-hidden border border-default-200">
 							<iframe
@@ -189,7 +192,7 @@ function ImageViewerModal({
 								size="sm"
 								variant="flat"
 								color="primary"
-								onPress={downloadFile}
+								onPress={() => {}}
 							>
 								Download instead
 							</Button>
@@ -206,7 +209,7 @@ function ImageViewerModal({
 							{/* Overlay download button */}
 							<a
 								href={photoUrl}
-								download={filename}
+								download={"Image"}
 								target="_blank"
 								rel="noreferrer"
 								className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/60 text-white text-xs font-medium hover:bg-black/80 transition-colors backdrop-blur-sm"
@@ -279,7 +282,7 @@ function ImageViewerModal({
 					{photoUrl && (
 						<Button
 							variant="flat"
-							onPress={downloadFile}
+							onPress={() => {}}
 							startContent={
 								<svg
 									aria-hidden
@@ -367,7 +370,7 @@ function PhotoCell({
 		);
 	}
 
-	if (item.photoPath) {
+	if (item.securePhotoUrl) {
 		return (
 			<div className="flex items-center gap-2 flex-wrap">
 				<button
@@ -566,13 +569,13 @@ export default function ArDetailPage({
 			: arCode;
 		setLoading(true);
 		try {
-			setDetail(
-				await apiRequest(
-					`api/Ar/${encodeURIComponent(cleanArCode)}`,
-					{},
-					token,
-				),
+			const data = await apiRequest(
+				`api/Ar/${encodeURIComponent(cleanArCode)}`,
+				{},
+				token,
 			);
+			setDetail(data);
+			console.log(data);
 			setNotFound(false);
 		} catch (err: any) {
 			// 2. Handle the error thrown by apiRequest
@@ -584,6 +587,7 @@ export default function ArDetailPage({
 				console.error("Fetch error:", err);
 			}
 		} finally {
+			console.log("Detail: " + detail);
 			setLoading(false);
 		}
 	}, [arCode, token]);
@@ -610,8 +614,6 @@ export default function ArDetailPage({
 		);
 
 	if (notFound || !detail) {
-		if (notFound) console.log("No Ar Codes Found");
-		if (!detail) console.log("No details found");
 		return (
 			<div className="p-10 text-center">
 				<p className="text-default-400 text-lg mb-2">AR code not found</p>

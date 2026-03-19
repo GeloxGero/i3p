@@ -42,10 +42,22 @@ function TemplateDownloadDropdown() {
 	const handleDownload = (url: string, filename: string) => {
 		const link = document.createElement("a");
 		link.href = url;
+		// Setting the download attribute suggests the filename to the browser
 		link.download = filename;
 		document.body.appendChild(link);
 		link.click();
 		document.body.removeChild(link);
+	};
+
+	const templates = {
+		app: {
+			url: "https://res.cloudinary.com/dlzobzben/raw/upload/v1773595856/AnnualProcurementPlan_Template_tep3fq.xlsx",
+			name: "Annual_Procurement_Plan_Template.xlsx",
+		},
+		apc: {
+			url: "https://res.cloudinary.com/dlzobzben/raw/upload/v1773595856/SchoolImplementationPlan_Template_vn7ijg.xlsx",
+			name: "School_Implementation_Plan_Template.xlsx",
+		},
 	};
 
 	return (
@@ -58,17 +70,9 @@ function TemplateDownloadDropdown() {
 			<DropdownMenu
 				aria-label="Download Excel templates"
 				onAction={(key) => {
-					if (key === "app") {
-						handleDownload(
-							"https://res.cloudinary.com/dlzobzben/raw/upload/v1773595856/AnnualProcurementPlan_Template_tep3fq.xlsx",
-							"AnnualProcurementPlan_Template.xlsx",
-						);
-					}
-					if (key === "apc") {
-						handleDownload(
-							"https://res.cloudinary.com/dlzobzben/raw/upload/fl_attachment/v1773595856/SchoolImplementationPlan_Template_vn7ijg.xlsx",
-							"SchoolImplementationPlan_Template.xlsx",
-						);
+					const selection = templates[key as keyof typeof templates];
+					if (selection) {
+						handleDownload(selection.url, selection.name);
 					}
 				}}
 			>
