@@ -1,360 +1,417 @@
+// components/addItemModal.tsx
+//
+// Modal for manually adding a single implementation item to an existing plan.
+// The month is pre-filled from the currently active tab but is changeable.
+//
+// ADVISORY WARNINGS (non-blocking)
+// ─────────────────────────────────
+// • Over-budget: cost would push the plan past the annual budget ceiling.
+// • Duplicate activity: same activity name already exists in the chosen month.
+//
+// Neither warning prevents submission — per spec they are informational only.
+//
+// STATE POLICY
+// ────────────
+// All state is local to this modal.  When the user confirms, we POST directly
+// to the API and then call onItemAdded() so the parent can re-fetch the detail.
+
+import { useState, useMemo } from "react";
 import {
-	Button,
-	Select,
-	SelectItem,
-	Spinner,
-	Modal,
-	ModalContent,
-	ModalHeader,
-	ModalBody,
-	ModalFooter,
-	useDisclosure,
-} from "@heroui/react";
-import { useEffect, useState, useRef } from "react";
-import { $token } from "../../../store/authStore";
-import { useStore } from "@nanostores/react";
-import * as XLSX from "xlsx";
-import { toast } from "../../Toast";
-import type { SchoolPlanHeader, SchoolPlan, MonthSheet } from "./types";
-import { DEFAULT_VISIBLE, MOBILE_VISIBLE } from "./constants";
-import { validateSipTemplate, parseSchoolPlanWorkbook } from "./utils";
-import {
-	GrandTotalCard,
-	MonthTable,
-	MonthFilterBar,
-	SeedFakeBanner,
-	MonthTabBar,
-	TotalView,
-	ColumnChooser,
-	TemplateDownloadDropdown,
-	AddItemModal,
-} from "./components";
+	MONTH_ORDER,
+	CATEGORY_ORDER,
+	monthIndex,
+	type MonthName,
+} from "./constants";
+import { buildDateString } from "./utils";
+import type { ExpenditureCategory } from "./types";
 
-import { SchoolPlanApi } from "./api";
+const BASE = "/api/SchoolImplementation";
 
-export default function SchoolPlanTable() {
-	const [planHeaders, setPlanHeaders] = useState<SchoolPlanHeader[]>([]);
-	const [selectedPlan, setSelectedPlan] = useState<SchoolPlan | null>(null);
-	const [activeMonth, setActiveMonth] = useState<string>("January");
-	const [loadingHeaders, setLoadingHeaders] = useState(true);
-	const [loadingItems, setLoadingItems] = useState(false);
-	const [uploading, setUploading] = useState(false);
-	const [visibleCols, setVisibleCols] = useState<Set<string>>(DEFAULT_VISIBLE);
-	const [validationError, setValidationError] = useState<string | null>(null);
-	const [previewSheets, setPreviewSheets] = useState<MonthSheet[]>([]);
-	const [previewActiveMonth, setPreviewActiveMonth] =
-		useState<string>("January");
-	const [fileToUpload, setFileToUpload] = useState<File | null>(null);
-	// Detect mobile breakpoint
-	const [isMobile, setIsMobile] = useState(false);
+// ─── Props ────────────────────────────────────────────────────────────────────
 
-	const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
-	const {
-		isOpen: addItemOpen,
-		onOpen: openAddItem,
-		onClose: closeAddItem,
-	} = useDisclosure();
-	const token = useStore($token);
-	const fileInputRef = useRef<HTMLInputElement>(null);
+interface Props {
+	planId: number;
+	year: number;
+	activeMonth: MonthName | null;
+	annualBudget?: number | null;
+	currentTotal?: number;
+	existingActivities?: { month: string; activity: string }[];
+	onClose: () => void;
+	onItemAdded: () => void;
+}
 
-	useEffect(() => {
-		fetchPlanHeaders();
-		const check = () => {
-			const mobile = window.innerWidth < 640;
-			setIsMobile(mobile);
-			// On mobile switch to minimal columns automatically
-			setVisibleCols(mobile ? MOBILE_VISIBLE : DEFAULT_VISIBLE);
-		};
-		check();
-		window.addEventListener("resize", check);
-		return () => window.removeEventListener("resize", check);
-	}, [token]);
+// ─── Form shape ───────────────────────────────────────────────────────────────
 
-	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		const reader = new FileReader();
-		reader.onload = (evt) => {
-			const workbook = XLSX.read(evt.target?.result, { type: "binary" });
-			const error = validateSipTemplate(workbook);
-			if (error) {
-				setValidationError(error);
-				e.target.value = "";
-				return;
-			}
-			setValidationError(null);
-			setFileToUpload(file);
-			const parsed = parseSchoolPlanWorkbook(workbook);
-			setPreviewSheets(parsed);
-			setPreviewActiveMonth(parsed[0]?.month ?? "January");
-			onOpen();
-		};
-		reader.readAsBinaryString(file);
-		e.target.value = "";
-	};
+interface FormState {
+	kra: string;
+	sipProgram: string;
+	activity: string;
+	purpose: string;
+	indicator: string;
+	resources: string;
+	quantity: string;
+	estimatedCost: string;
+	accountTitle: string;
+	accountCode: string;
+	expenditureType: ExpenditureCategory;
+}
 
-	const confirmUpload = async () => {
-		if (!fileToUpload) return;
-		setUploading(true);
+const EMPTY_FORM: FormState = {
+	kra: "",
+	sipProgram: "",
+	activity: "",
+	purpose: "",
+	indicator: "",
+	resources: "",
+	quantity: "",
+	estimatedCost: "",
+	accountTitle: "",
+	accountCode: "",
+	expenditureType: "Regular Expenditure",
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function AddItemModal({
+	planId,
+	year,
+	activeMonth,
+	annualBudget,
+	currentTotal = 0,
+	existingActivities = [],
+	onClose,
+	onItemAdded,
+}: Props) {
+	// `month` is MonthName so it is always a valid entry from MONTH_ORDER.
+	// We default to the currently active tab; if there is none (e.g. All tab
+	// is selected), fall back to January.
+	const [month, setMonth] = useState<MonthName>(activeMonth ?? MONTH_ORDER[0]);
+	const [form, setForm] = useState<FormState>(EMPTY_FORM);
+	const [saving, setSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	const cost = parseFloat(form.estimatedCost) || 0;
+
+	// ── Advisory warnings ─────────────────────────────────────────────────────
+
+	const overBudget = useMemo(
+		() => !!annualBudget && currentTotal + cost > annualBudget,
+		[annualBudget, currentTotal, cost],
+	);
+
+	const alreadyExists = useMemo(
+		() =>
+			!!form.activity.trim() &&
+			existingActivities.some(
+				(e) =>
+					e.month.toLowerCase() === month.toLowerCase() &&
+					e.activity.trim().toLowerCase() ===
+						form.activity.trim().toLowerCase(),
+			),
+		[existingActivities, month, form.activity],
+	);
+
+	// ── Controlled-input helper ────────────────────────────────────────────────
+	//
+	// Returns an onChange handler bound to one field of the form.
+	// Extracting this avoids a separate handler per field while keeping the
+	// form state update in one place.
+	const setField =
+		(key: keyof FormState) =>
+		(
+			e: React.ChangeEvent<
+				HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+			>,
+		) =>
+			setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+	// ── Submit ────────────────────────────────────────────────────────────────
+
+	const handleSubmit = async () => {
+		if (!form.activity.trim()) {
+			setError("Activity / Programme is required.");
+			return;
+		}
+		if (cost <= 0) {
+			setError("Estimated cost must be greater than zero.");
+			return;
+		}
+
+		// buildDateString uses monthIndex internally — no cast needed here.
+		const dateStr = buildDateString(year, month);
+
+		setSaving(true);
+		setError(null);
+
 		try {
-			await SchoolPlanApi.importExcel(fileToUpload, token); // 2. Clean call
-			await fetchPlanHeaders();
-			toast.success("Import successful");
-			onClose();
-		} catch (err: any) {
-			toast.error("Import failed", err.message);
-		} finally {
-			setUploading(false);
+			const res = await fetch(`${BASE}/item`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					date: dateStr,
+					kra: form.kra || null,
+					sipProgram: form.sipProgram || "Unimplemented",
+					activity: form.activity,
+					purpose: form.purpose || null,
+					indicator: form.indicator || null,
+					resources: form.resources || null,
+					quantity: form.quantity || null,
+					estimatedCost: cost,
+					accountTitle: form.accountTitle || null,
+					accountCode: form.accountCode || null,
+					expenditureType: form.expenditureType,
+					status: 0, // SipStatus.Implemented
+				}),
+			});
+
+			if (!res.ok)
+				throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
+			onItemAdded();
+		} catch (e) {
+			setError(e instanceof Error ? e.message : "Failed to save item.");
+			setSaving(false);
 		}
 	};
 
-	const fetchPlanHeaders = async () => {
-		setLoadingHeaders(true);
-		try {
-			const data = await SchoolPlanApi.getHeaders(token); // 3. Clean call
-			setPlanHeaders(data);
-			if (data.length > 0 && !selectedPlan) fetchPlanById(data[0].id);
-		} finally {
-			setLoadingHeaders(false);
-		}
-	};
-
-	const fetchPlanById = async (planId: string) => {
-		setLoadingItems(true);
-		try {
-			const data = await SchoolPlanApi.getById(planId, token); // 4. Clean call
-			setSelectedPlan(data);
-			setActiveMonth(data.months?.[0]?.month ?? "January");
-		} finally {
-			setLoadingItems(false);
-		}
-	};
-
-	const handleSelectionChange = (keys: any) => {
-		const id = Array.from(keys)[0] as string;
-		if (id) fetchPlanById(id);
-	};
-	const activeSheet = selectedPlan?.months?.find(
-		(m) => m.month === activeMonth,
-	);
-	const previewSheet = previewSheets.find(
-		(m) => m.month === previewActiveMonth,
-	);
-
-	// Items in the active month that have no AR code yet (for dev seeding)
-	const unlinkedItems = (activeSheet?.items ?? []).filter(
-		(i) => !i.arCode && i.id != null,
-	);
-	if (loadingHeaders)
-		return <div className="p-4 sm:p-8 text-default-500">Loading plans...</div>;
+	// ── Render ────────────────────────────────────────────────────────────────
 
 	return (
-		<div className="flex flex-col gap-4 sm:gap-6">
-			{/* ── Plan selector + Import (always visible) ── */}
-			<div className="flex items-center gap-2 flex-wrap">
-				<Select
-					label="Plan Year"
-					className="flex-1 min-w-0 max-w-xs"
-					selectedKeys={
-						selectedPlan ? new Set([String(selectedPlan.id)]) : undefined
-					}
-					onSelectionChange={handleSelectionChange}
-				>
-					{planHeaders.map((p) => (
-						<SelectItem key={p.id}>
-							{p.year} — {p.school}
-						</SelectItem>
-					))}
-				</Select>
-				<input
-					type="file"
-					ref={fileInputRef}
-					onChange={handleFileChange}
-					accept=".xlsx,.xls"
-					className="hidden"
-				/>
-				<Button
-					color="primary"
-					size="sm"
-					onPress={() => fileInputRef.current?.click()}
-					isLoading={uploading}
-				>
-					{uploading ? "Importing..." : "Import Excel"}
-				</Button>
-			</div>
-
-			{/* ── Validation error ── */}
-			{validationError && (
-				<div className="flex items-start gap-3 px-3 sm:px-4 py-3 bg-danger-50 border border-danger-200 rounded-xl text-sm">
-					<span className="text-danger-600 shrink-0">⚠</span>
-					<div className="flex flex-col gap-1 flex-1 min-w-0">
-						<span className="font-semibold text-danger-700">
-							Invalid File Format
-						</span>
-						<span className="text-danger-600 text-xs break-words">
-							{validationError}
-						</span>
-					</div>
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+			<div className="bg-background rounded-xl shadow-xl w-full max-w-lg flex flex-col max-h-[92vh]">
+				{/* Header */}
+				<div className="flex items-center justify-between px-5 py-4 border-b border-default-100 shrink-0">
+					<h2 className="text-base font-semibold">Add Item — {year}</h2>
 					<button
-						onClick={() => setValidationError(null)}
-						className="text-danger-400 hover:text-danger-600 shrink-0"
+						onClick={onClose}
+						aria-label="Close"
+						className="text-default-400 hover:text-default-700 text-xl leading-none"
 					>
 						×
 					</button>
 				</div>
-			)}
 
-			{/* ── Preview Modal ── */}
-			<Modal
-				isOpen={isOpen}
-				onOpenChange={onOpenChange}
-				size="full"
-				scrollBehavior="normal"
-				classNames={{ wrapper: "overflow-hidden" }}
-			>
-				<ModalContent className="flex flex-col h-[100dvh] overflow-hidden">
-					<ModalHeader className="flex flex-col gap-1 shrink-0 px-4 sm:px-6">
-						<span>Preview Import Data</span>
-						<span className="text-xs sm:text-sm font-normal text-default-500">
-							Review before confirming.
-						</span>
-					</ModalHeader>
-					<ModalBody className="flex-1 overflow-y-auto min-h-0 px-3 sm:px-6 py-3">
-						{previewSheets.length > 0 ? (
-							previewSheet ? (
-								<div className="flex flex-col gap-3">
-									<GrandTotalCard sheet={previewSheet} />
-									<MonthTable
-										sheet={previewSheet}
-										visibleCols={visibleCols}
-										isMobile={isMobile}
-									/>
-								</div>
-							) : (
-								<div className="text-center text-default-400 p-10">
-									Select a month below.
-								</div>
-							)
-						) : (
-							<div className="text-center text-default-400 p-10">
-								No data found in file.
-							</div>
-						)}
-					</ModalBody>
-					{previewSheets.length > 0 && (
-						<MonthFilterBar
-							sheets={previewSheets}
-							activeMonth={previewActiveMonth}
-							onSelect={setPreviewActiveMonth}
-						/>
+				{/* Scrollable body */}
+				<div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-4">
+					{/* Warnings */}
+					{overBudget && (
+						<Banner variant="error">
+							Adding this item would exceed the annual budget by{" "}
+							<strong>
+								{new Intl.NumberFormat("en-PH", {
+									style: "currency",
+									currency: "PHP",
+								}).format(currentTotal + cost - (annualBudget ?? 0))}
+							</strong>
+							.
+						</Banner>
 					)}
-					<ModalFooter className="shrink-0 px-4 sm:px-6">
-						<Button color="danger" variant="flat" size="sm" onPress={onClose}>
-							Cancel
-						</Button>
-						<Button
-							color="primary"
-							size="sm"
-							isLoading={uploading}
-							onPress={confirmUpload}
-						>
-							Confirm & Import
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
+					{alreadyExists && (
+						<Banner variant="warn">
+							An item with this activity name already exists in{" "}
+							<strong>{month}</strong>.
+						</Banner>
+					)}
 
-			{/* ── Main Content ── */}
-			{loadingItems ? (
-				<div className="flex justify-center p-10">
-					<Spinner
-						classNames={{ label: "text-foreground mt-4" }}
-						variant="wave"
-					/>
-				</div>
-			) : selectedPlan ? (
-				<div className="flex flex-col gap-3 sm:gap-4">
-					<div>
-						<h2 className="text-lg sm:text-2xl font-bold leading-tight">
-							School Implementation Plan — {selectedPlan.year}
-						</h2>
-						<p className="text-xs sm:text-sm text-default-500 mt-0.5">
-							{selectedPlan.school}
-						</p>
+					{/* Month picker — button group (one per month, abbreviated) */}
+					<Field label="Month">
+						<div className="flex flex-wrap gap-1">
+							{MONTH_ORDER.map((m: any) => (
+								<button
+									key={m}
+									type="button"
+									onClick={() => setMonth(m)}
+									className={pill(month === m)}
+								>
+									{m.slice(0, 3)}
+								</button>
+							))}
+						</div>
+					</Field>
+
+					{/* Category picker — button group */}
+					<Field label="Category">
+						<div className="flex flex-wrap gap-1">
+							{CATEGORY_ORDER.map((cat: any) => (
+								<button
+									key={cat}
+									type="button"
+									onClick={() =>
+										setForm((f) => ({ ...f, expenditureType: cat }))
+									}
+									className={pill(form.expenditureType === cat, "primary")}
+								>
+									{cat}
+								</button>
+							))}
+						</div>
+					</Field>
+
+					{/* Activity (required) */}
+					<Field label="Activity / Programme *">
+						<input
+							className={inputCls}
+							value={form.activity}
+							onChange={setField("activity")}
+							placeholder="e.g. Purchase of office supplies"
+						/>
+					</Field>
+
+					{/* KRA + SIP program */}
+					<div className="grid grid-cols-2 gap-3">
+						<Field label="KRA">
+							<input
+								className={inputCls}
+								value={form.kra}
+								onChange={setField("kra")}
+								placeholder="e.g. KRA 1"
+							/>
+						</Field>
+						<Field label="SIP Program">
+							<input
+								className={inputCls}
+								value={form.sipProgram}
+								onChange={setField("sipProgram")}
+								placeholder="e.g. ADM"
+							/>
+						</Field>
 					</div>
-					<MonthTabBar
-						sheets={selectedPlan.months ?? []}
-						activeMonth={activeMonth}
-						onSelect={setActiveMonth}
-					/>
-					{activeMonth === "TOTAL" ? (
-						<TotalView
-							sheets={selectedPlan.months ?? []}
-							annualBudget={selectedPlan.annualBudget}
+
+					{/* Cost + Quantity */}
+					<div className="grid grid-cols-2 gap-3">
+						<Field label="Estimated Cost (₱) *">
+							<input
+								className={inputCls}
+								type="number"
+								min={0}
+								step="0.01"
+								value={form.estimatedCost}
+								onChange={setField("estimatedCost")}
+								placeholder="0.00"
+							/>
+						</Field>
+						<Field label="Quantity">
+							<input
+								className={inputCls}
+								value={form.quantity}
+								onChange={setField("quantity")}
+								placeholder="e.g. 5"
+							/>
+						</Field>
+					</div>
+
+					{/* Account title + code */}
+					<div className="grid grid-cols-2 gap-3">
+						<Field label="Account Title">
+							<input
+								className={inputCls}
+								value={form.accountTitle}
+								onChange={setField("accountTitle")}
+							/>
+						</Field>
+						<Field label="Account Code">
+							<input
+								className={inputCls}
+								value={form.accountCode}
+								onChange={setField("accountCode")}
+							/>
+						</Field>
+					</div>
+
+					{/* Purpose */}
+					<Field label="Purpose / Objectives">
+						<textarea
+							className={`${inputCls} resize-none`}
+							rows={2}
+							value={form.purpose}
+							onChange={setField("purpose")}
 						/>
-					) : (
-						<>
-							{/* Grand Total Card — budget summary only, no toolbar */}
-							{activeSheet && (
-								<GrandTotalCard
-									sheet={activeSheet}
-									annualBudget={selectedPlan.annualBudget}
-								/>
-							)}
-							{/* ── Dev seed banner ── */}
-							{/* 2. Responsive Seed Banner (Mobile-Optimized) */}
-							{unlinkedItems.length > 0 && (
-								<SeedFakeBanner
-									planId={selectedPlan.id}
-									items={unlinkedItems}
-									token={token}
-									onDone={() => fetchPlanById(selectedPlan.id)}
-								/>
-							)}
-							{/* ── Secondary toolbar — Columns, Templates, Add Item — separate from budget card ── */}
-							{activeSheet && (
-								<div className="flex items-center gap-2 flex-wrap border border-default-200 rounded-xl px-4 py-2.5 bg-default-50/50">
-									<ColumnChooser
-										visibleCols={visibleCols}
-										onChange={setVisibleCols}
-									/>
-									<TemplateDownloadDropdown />
-									<div className="flex-1" />
-									<Button color="success" size="sm" onPress={openAddItem}>
-										+ Add Line Item
-									</Button>
-								</div>
-							)}
+					</Field>
 
-							{activeSheet ? (
-								<MonthTable
-									sheet={activeSheet}
-									visibleCols={visibleCols}
-									isMobile={isMobile}
-								/>
-							) : (
-								<div className="text-center text-default-400 p-10">
-									Select a month above.
-								</div>
-							)}
-						</>
-					)}
-				</div>
-			) : (
-				<div className="text-default-500 text-center p-10 text-sm">
-					Select a year to view the School Implementation Plan.
-				</div>
-			)}
+					{/* Performance indicator */}
+					<Field label="Performance Indicator">
+						<input
+							className={inputCls}
+							value={form.indicator}
+							onChange={setField("indicator")}
+						/>
+					</Field>
 
-			{selectedPlan && (
-				<AddItemModal
-					activeMonth={activeMonth === "TOTAL" ? "January" : activeMonth}
-					token={token}
-					isOpen={addItemOpen}
-					onClose={closeAddItem}
-					onAdded={() => fetchPlanById(selectedPlan.id)}
-				/>
-			)}
+					{/* Error banner */}
+					{error && <Banner variant="error">{error}</Banner>}
+				</div>
+
+				{/* Footer */}
+				<div className="flex justify-end gap-2 px-5 py-4 border-t border-default-100 shrink-0">
+					<button
+						onClick={onClose}
+						className="px-4 py-2 text-sm rounded-lg text-default-600 hover:bg-default-100 transition-colors"
+					>
+						Cancel
+					</button>
+					<button
+						onClick={handleSubmit}
+						disabled={saving}
+						className="px-5 py-2 text-sm font-medium rounded-lg bg-primary text-white disabled:opacity-50 hover:bg-primary/90 transition-colors"
+					>
+						{saving ? "Saving…" : "Add Item"}
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// ─── Micro-components / style helpers ─────────────────────────────────────────
+
+const inputCls =
+	"w-full border border-default-200 rounded-lg px-3 py-1.5 text-sm " +
+	"focus:outline-none focus:border-primary transition-colors bg-background";
+
+/** Returns pill-button Tailwind classes for a toggle group item. */
+function pill(
+	active: boolean,
+	accent: "default" | "primary" = "default",
+): string {
+	const on =
+		accent === "primary"
+			? "bg-primary/10 text-primary border-primary/40"
+			: "bg-primary text-white border-primary";
+	const off = "border-default-200 text-default-500 hover:border-default-400";
+	return `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${active ? on : off}`;
+}
+
+function Field({
+	label,
+	children,
+}: {
+	label: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<div className="flex flex-col gap-1.5">
+			<label className="text-xs font-medium text-default-500">{label}</label>
+			{children}
+		</div>
+	);
+}
+
+function Banner({
+	variant,
+	children,
+}: {
+	variant: "error" | "warn";
+	children: React.ReactNode;
+}) {
+	const cls =
+		variant === "error"
+			? "bg-red-50 border-red-200 text-red-700"
+			: "bg-amber-50 border-amber-200 text-amber-700";
+	return (
+		<div
+			className={`border rounded-lg px-3 py-2 text-sm flex gap-2 items-start ${cls}`}
+		>
+			<span className="shrink-0">{variant === "error" ? "⚠" : "ℹ"}</span>
+			<span>{children}</span>
 		</div>
 	);
 }

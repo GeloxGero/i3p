@@ -1,258 +1,259 @@
-import {
-	Tooltip,
-	Chip,
-	Table,
-	TableHeader,
-	TableColumn,
-	TableBody,
-	TableRow,
-	TableCell,
-} from "@heroui/react";
-import type { SchoolPlanItem, MonthSheet, TableRowData } from "../types";
-import { ALL_COLUMNS, CATEGORY_COLORS, CATEGORY_LABELS } from "../constants";
-import { MobileItemCard } from "./cardRenderer";
-import { fmt } from "../utils";
+// components/tableRenderer.tsx
+//
+// Renders the data table for the currently-selected month sheet.
+// Column visibility is driven by the `columns` prop from the parent —
+// this component never mutates it.
+//
+// DESIGN NOTES
+// ────────────
+// • Items are already grouped by category in the DTO (the backend's
+//   BuildMonthDtos orders them by CategoryOrder), so we just render
+//   a category header row whenever the category changes.
+// • Subtotals and grand total come from the DTO; we do not recompute them
+//   here so the numbers always match the backend's source of truth.
+// • Optimistic delete: we call onDeleteItem and let the parent re-fetch.
+//   The row does not disappear until the parent updates the prop, which is
+//   fast enough that no local "pending" state is needed.
 
-function ArCodeCell({ row }: { row: SchoolPlanItem }) {
-	if (!row.arCode)
-		return <span className="text-xs text-default-300 italic">—</span>;
+import { useMemo } from "react";
+import type {
+	MonthSheetDto,
+	SchoolPlanItemDto,
+	ColumnVisibility,
+} from "../types";
+import { SipStatus } from "../types";
+import { formatPeso } from "../utils";
+import { CATEGORY_ORDER, COLUMN_LABELS } from "../constants";
+
+interface Props {
+	sheet: MonthSheetDto;
+	columns: ColumnVisibility;
+	onDeleteItem: (id: number) => void;
+}
+
+export default function TableRenderer({ sheet, columns, onDeleteItem }: Props) {
+	// Build the ordered list of visible column keys once; recomputes only when
+	// the columns prop reference changes (toggling a column in ActionsBar).
+	const visibleCols = useMemo(
+		() =>
+			(Object.keys(columns) as (keyof ColumnVisibility)[]).filter(
+				(k) => columns[k],
+			),
+		[columns],
+	);
+
+	// Group items by category preserving CategoryOrder
+	const grouped = useMemo(() => {
+		const map = new Map<string, SchoolPlanItemDto[]>();
+		for (const item of sheet.items) {
+			const cat = item.category ?? "Regular Expenditure";
+			if (!map.has(cat)) map.set(cat, []);
+			map.get(cat)!.push(item);
+		}
+		return CATEGORY_ORDER.map((cat) => ({
+			category: cat,
+			items: map.get(cat) ?? [],
+		})).filter((g) => g.items.length > 0);
+	}, [sheet.items]);
+
+	if (sheet.items.length === 0) {
+		return (
+			<div className="text-center py-12 text-default-400 text-sm">
+				No items for {sheet.month}.
+			</div>
+		);
+	}
+
 	return (
-		<Tooltip
-			content={
-				row.isVerified
-					? "All linked APP items verified ✓"
-					: "Pending photo verification — click to review"
-			}
-		>
-			<a
-				href={`/projects/detail?code=${encodeURIComponent(row.arCode)}`}
-				className="inline-flex items-center gap-1.5 group"
-			>
-				<span className="text-xs font-mono text-primary underline underline-offset-2 group-hover:text-primary-600 transition-colors">
-					{row.arCode}
-				</span>
-				{row.isVerified ? (
-					<span className="flex items-center justify-center w-4 h-4 rounded-full bg-success text-white text-[9px] font-bold shrink-0">
-						✓
-					</span>
-				) : (
-					<span className="flex items-center justify-center w-4 h-4 rounded-full bg-warning/20 text-warning-700 text-[9px] font-bold shrink-0">
-						!
-					</span>
-				)}
-			</a>
-		</Tooltip>
+		<div className="overflow-x-auto rounded-xl border border-default-200">
+			<table className="w-full text-sm">
+				<thead>
+					<tr className="bg-default-50 border-b border-default-200">
+						{visibleCols.map((key) => (
+							<th
+								key={key}
+								className="px-3 py-2.5 text-left text-xs font-semibold text-default-500 uppercase tracking-wide whitespace-nowrap"
+							>
+								{COLUMN_LABELS[key]}
+							</th>
+						))}
+						<th className="px-3 py-2.5 text-xs font-semibold text-default-500 uppercase tracking-wide w-10" />
+					</tr>
+				</thead>
+
+				<tbody>
+					{grouped.map(({ category, items }) => (
+						<>
+							{/* Category section header */}
+							<tr key={`cat-${category}`} className="bg-default-100">
+								<td
+									colSpan={visibleCols.length + 1}
+									className="px-3 py-1.5 text-xs font-bold text-default-600 uppercase tracking-wider"
+								>
+									{category}
+								</td>
+							</tr>
+
+							{/* Data rows */}
+							{items.map((item) => (
+								<tr
+									key={item.id}
+									className="border-b border-default-100 hover:bg-default-50/60 transition-colors group"
+								>
+									{visibleCols.map((key) => (
+										<td key={key} className="px-3 py-2 align-top">
+											<CellValue colKey={key} item={item} />
+										</td>
+									))}
+									{/* Delete button — only visible on row hover */}
+									<td className="px-2 py-2 text-right">
+										<button
+											onClick={() => onDeleteItem(item.id)}
+											className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600 text-base leading-none"
+											title="Remove item"
+										>
+											×
+										</button>
+									</td>
+								</tr>
+							))}
+
+							{/* Category subtotal row */}
+							<tr
+								key={`sub-${category}`}
+								className="bg-default-50 border-b border-default-200"
+							>
+								<td
+									colSpan={visibleCols.length}
+									className="px-3 py-1.5 text-right text-xs font-semibold text-default-600"
+								>
+									Subtotal — {category}
+								</td>
+								<td className="px-3 py-1.5 text-right text-xs font-semibold text-default-700 whitespace-nowrap">
+									{formatPeso(sheet.subTotals[category] ?? 0)}
+								</td>
+							</tr>
+						</>
+					))}
+
+					{/* Grand total */}
+					<tr className="bg-primary/5 font-bold">
+						<td
+							colSpan={visibleCols.length}
+							className="px-3 py-2.5 text-right text-sm text-default-700"
+						>
+							Grand Total — {sheet.month}
+						</td>
+						<td className="px-3 py-2.5 text-right text-sm text-primary whitespace-nowrap">
+							{formatPeso(sheet.grandTotal)}
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
 	);
 }
 
-function StatusCell({ row }: { row: SchoolPlanItem }) {
-	return (
-		<Chip
-			size="sm"
-			variant="flat"
-			color={row.isVerified ? "success" : "warning"}
-		>
-			{row.isVerified ? "Verified" : "Pending Verification"}
-		</Chip>
-	);
-}
-
-function renderCell(row: SchoolPlanItem, uid: string): React.ReactNode {
-	switch (uid) {
+// ─── Cell renderer (maps column key → formatted value) ───────────────────────
+function CellValue({
+	colKey,
+	item,
+}: {
+	colKey: keyof ColumnVisibility;
+	item: SchoolPlanItemDto;
+}) {
+	switch (colKey) {
 		case "kraArea":
-			return (
-				<span className="text-xs text-default-500 leading-tight">
-					{row.kraArea}
-				</span>
-			);
+			return <span className="text-default-700">{item.kraArea || "—"}</span>;
 		case "specificProgram":
-			return row.specificProgram === "Unimplemented" ? null : (
-				<span className="text-xs leading-tight">{row.specificProgram}</span>
-			);
+			return <span>{item.specificProgram}</span>;
 		case "programActivity":
-			return (
-				<span className="text-sm leading-snug">{row.programActivity}</span>
-			);
+			return <span className="font-medium">{item.programActivity || "—"}</span>;
 		case "purpose":
-			return <span className="text-xs leading-tight">{row.purpose}</span>;
+			return (
+				<span className="text-default-500 text-xs">{item.purpose || "—"}</span>
+			);
 		case "performanceIndicator":
 			return (
-				<span className="text-xs leading-tight">
-					{row.performanceIndicator}
+				<span className="text-default-500 text-xs">
+					{item.performanceIndicator || "—"}
 				</span>
 			);
 		case "resourceDescription":
 			return (
-				<span className="text-xs leading-tight">{row.resourceDescription}</span>
+				<span className="text-default-500 text-xs">
+					{item.resourceDescription || "—"}
+				</span>
 			);
 		case "quantity":
-			return <span className="block text-right">{row.quantity}</span>;
+			return <span className="text-center block">{item.quantity || "—"}</span>;
 		case "estimatedCost":
 			return (
-				<span className="block text-right font-medium">
-					{row.estimatedCost > 0 ? fmt(row.estimatedCost) : "—"}
+				<span className="font-mono text-right block whitespace-nowrap">
+					{formatPeso(item.estimatedCost)}
 				</span>
 			);
 		case "accountTitle":
-			return <span className="text-xs">{row.accountTitle}</span>;
+			return <span className="text-xs">{item.accountTitle || "—"}</span>;
 		case "accountCode":
-			return <span className="text-xs font-mono">{row.accountCode}</span>;
+			return (
+				<span className="font-mono text-xs">{item.accountCode || "—"}</span>
+			);
+		case "category":
+			return <CategoryBadge category={item.category} />;
 		case "arCode":
-			return <ArCodeCell row={row} />;
+			return (
+				<span className="font-mono text-xs text-default-500">
+					{item.arCode ?? (
+						<span className="italic text-default-300">pending</span>
+					)}
+				</span>
+			);
 		case "status":
-			return <StatusCell row={row} />;
+			return <StatusBadge status={item.status} verified={item.isVerified} />;
 		default:
 			return null;
 	}
 }
 
-function MonthTable({
-	sheet,
-	visibleCols,
-	isMobile,
-}: {
-	sheet: MonthSheet;
-	visibleCols: Set<string>;
-	isMobile: boolean;
-}) {
-	const categories = Array.from(new Set(sheet.items.map((i) => i.category)));
-	const activeCols = ALL_COLUMNS.filter((c) => visibleCols.has(c.uid));
+function CategoryBadge({ category }: { category: string }) {
+	const colours: Record<string, string> = {
+		"Regular Expenditure": "bg-blue-50 text-blue-700",
+		"Project Related Expenditure": "bg-purple-50 text-purple-700",
+		"Repair and Maintenance": "bg-orange-50 text-orange-700",
+		Others: "bg-gray-50 text-gray-600",
+	};
 	return (
-		<div className="flex flex-col gap-4 pb-4">
-			{categories.map((cat) => {
-				const catItems = sheet.items.filter((i) => i.category === cat);
-				const subtotal = sheet.subTotals[cat];
-				const itemsWithArCode = catItems.filter(
-					(item) => item.arCode && item.arCode.trim() !== "",
-				);
-				return (
-					<div key={cat} className="flex flex-col gap-2">
-						<div className="flex items-center gap-2">
-							<h3 className="text-xs sm:text-sm font-semibold text-default-600 uppercase tracking-wide">
-								{cat}
-							</h3>
-							<Chip
-								size="sm"
-								color={CATEGORY_COLORS[cat] ?? "default"}
-								variant="flat"
-							>
-								{CATEGORY_LABELS[cat] ?? cat} · {itemsWithArCode.length}
-							</Chip>
-						</div>
-
-						{/* Mobile: card list */}
-						{isMobile ? (
-							<div className="flex flex-col gap-2">
-								{itemsWithArCode.map((item, idx) => (
-									<MobileItemCard key={idx} item={item} />
-								))}
-								{subtotal !== undefined && (
-									<div className="flex items-center justify-between px-3 py-2 bg-default-100/80 rounded-xl">
-										<span className="text-xs font-semibold text-default-500 uppercase tracking-wide">
-											Sub-Total
-										</span>
-										<span className="text-sm font-bold text-primary">
-											{fmt(subtotal)}
-										</span>
-									</div>
-								)}
-								{itemsWithArCode.length === 0 && (
-									<p className="text-xs text-default-400 px-1">No items.</p>
-								)}
-							</div>
-						) : (
-							// Desktop/tablet: scrollable table
-							<div className="overflow-x-auto -mx-0">
-								<Table aria-label={`${cat} items`} removeWrapper>
-									<TableHeader>
-										{activeCols.map((col) => (
-											<TableColumn
-												key={col.uid}
-												className={col.className ?? ""}
-											>
-												{col.label}
-											</TableColumn>
-										))}
-									</TableHeader>
-									<TableBody
-										emptyContent="No items."
-										items={[
-											...itemsWithArCode.map(
-												(item, idx) =>
-													({ ...item, _rowKey: `item-${idx}` }) as TableRowData,
-											),
-											...(subtotal !== undefined
-												? [
-														{
-															_rowKey: "subtotal",
-															_isSubtotal: true as const,
-															_subtotalValue: subtotal,
-															kraArea: "",
-															specificProgram: "",
-															programActivity: "",
-															purpose: "",
-															performanceIndicator: "",
-															resourceDescription: "",
-															quantity: "",
-															estimatedCost: 0,
-															accountTitle: "",
-															accountCode: "",
-															category: cat,
-														},
-													]
-												: []),
-										]}
-									>
-										{(row: TableRowData) =>
-											row._isSubtotal ? (
-												<TableRow
-													key={row._rowKey}
-													className="bg-default-100/60 font-bold"
-												>
-													{activeCols.map((col) => {
-														if (col.uid === "estimatedCost")
-															return (
-																<TableCell
-																	key={col.uid}
-																	className="text-right font-bold text-primary"
-																>
-																	₱
-																	{row._subtotalValue!.toLocaleString("en-PH", {
-																		minimumFractionDigits: 2,
-																	})}
-																</TableCell>
-															);
-														if (col.uid === "accountTitle")
-															return (
-																<TableCell
-																	key={col.uid}
-																	className="text-right font-semibold text-default-500"
-																>
-																	Sub-Total
-																</TableCell>
-															);
-														return <TableCell key={col.uid}>{""}</TableCell>;
-													})}
-												</TableRow>
-											) : (
-												<TableRow key={row._rowKey}>
-													{activeCols.map((col) => (
-														<TableCell key={col.uid}>
-															{renderCell(row, col.uid)}
-														</TableCell>
-													))}
-												</TableRow>
-											)
-										}
-									</TableBody>
-								</Table>
-							</div>
-						)}
-					</div>
-				);
-			})}
-		</div>
+		<span
+			className={`px-1.5 py-0.5 rounded text-xs font-medium ${colours[category] ?? "bg-default-100 text-default-600"}`}
+		>
+			{category}
+		</span>
 	);
 }
 
-export { MonthTable };
+function StatusBadge({
+	status,
+	verified,
+}: {
+	status: SipStatus;
+	verified: boolean;
+}) {
+	if (verified)
+		return (
+			<span className="px-1.5 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700">
+				Verified
+			</span>
+		);
+	if (status === SipStatus.Approved)
+		return (
+			<span className="px-1.5 py-0.5 rounded text-xs font-medium bg-sky-50 text-sky-700">
+				Approved
+			</span>
+		);
+	return (
+		<span className="px-1.5 py-0.5 rounded text-xs font-medium bg-default-100 text-default-500">
+			Implemented
+		</span>
+	);
+}

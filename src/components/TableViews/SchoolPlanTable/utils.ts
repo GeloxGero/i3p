@@ -1,154 +1,119 @@
-import {
-	MONTH_NAMES,
-	HEADER_ROW_INDEX,
-	REQUIRED_HEADER_KEYWORDS,
-	TEMPLATE_SECTIONS,
-	DATA_START_INDEX,
-	TableColumn,
-} from "./constants";
+// utils.ts — SchoolPlanTable
+//
+// Pure, side-effect-free helper functions.
+// Every function here is unit-testable without a DOM or React context.
 
-import type { MonthSheet, SchoolPlanItem } from "./types";
-import * as XLSX from "xlsx";
+import { MONTH_ORDER, monthIndex, type MonthName } from "./constants";
 
-function isMonthSheet(n: string) {
-	return MONTH_NAMES.some((m) => n.trim().toLowerCase() === m.toLowerCase());
-}
-function normalizeMonthName(n: string) {
-	const t = n.trim().toLowerCase();
-	return MONTH_NAMES.find((m) => m.toLowerCase() === t) ?? n.trim();
-}
+// ─── Formatting ───────────────────────────────────────────────────────────────
 
-function parseCost(raw: unknown): number {
-	return parseFloat(String(raw ?? "").replace(/[₱,\s]/g, "")) || 0;
-}
-function cellStr(row: unknown[], col: number): string {
-	return String(row[col] ?? "").trim();
-}
-function fmt(n: number): string {
-	return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
-}
+/**
+ * Formats a number as Philippine Peso with thousands separators and 2 decimal
+ * places.  Example: formatPeso(1234567.8) → "₱1,234,567.80"
+ *
+ * We use `Intl.NumberFormat` instead of a hand-rolled regex because it handles
+ * edge cases (negative numbers, very large values, locales) automatically.
+ */
+export const formatPeso = (value: number): string =>
+	new Intl.NumberFormat("en-PH", {
+		style: "currency",
+		currency: "PHP",
+		minimumFractionDigits: 2,
+	}).format(value);
 
-function validateSipTemplate(workbook: XLSX.WorkBook): string | null {
-	const monthSheets = workbook.SheetNames.filter(isMonthSheet);
-	if (monthSheets.length === 0)
-		return "No month-named sheets found. Use the official SIP template.";
-	const ws = workbook.Sheets[monthSheets[0]];
-	const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, {
-		header: 1,
-		defval: "",
-	});
-	const headerRow = rows[HEADER_ROW_INDEX] ?? [];
-	const headerJoined = headerRow.map((c) => String(c).toLowerCase()).join(" ");
-	for (const kw of REQUIRED_HEADER_KEYWORDS)
-		if (!headerJoined.includes(kw))
-			return `Missing header: "${kw}". Use the official SIP template.`;
-	for (const { category, startCol } of TEMPLATE_SECTIONS)
-		if (
-			!String(headerRow[startCol] ?? "")
-				.toLowerCase()
-				.includes("key result area")
-		)
-			return `Template mismatch in "${category}" at column ${startCol + 1}.`;
-	return null;
-}
+/**
+ * Returns a 3-letter abbreviated month label (e.g. "Jan", "Feb").
+ * Falls back to the first 3 characters of the input if the month is unknown.
+ */
+export const shortMonth = (month: string): string => month.slice(0, 3);
 
-export function parseSchoolPlanWorkbook(workbook: XLSX.WorkBook): MonthSheet[] {
-	const results: MonthSheet[] = [];
+// ─── Date helpers ─────────────────────────────────────────────────────────────
 
-	for (const sheetName of workbook.SheetNames) {
-		if (!isMonthSheet(sheetName)) continue;
-
-		const month = normalizeMonthName(sheetName);
-		const ws = workbook.Sheets[sheetName];
-		const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, {
-			header: 1,
-			defval: "",
-		});
-
-		const items: SchoolPlanItem[] = [];
-		const subTotals: Record<string, number> = {};
-
-		// Iterate through rows starting from the data index
-		for (let ri = DATA_START_INDEX; ri < rows.length; ri++) {
-			const row = rows[ri];
-
-			for (const { category, startCol } of TEMPLATE_SECTIONS) {
-				// Using the Enum for semantic clarity
-				const kra = cellStr(row, startCol + TableColumn.KRA);
-				const ppa = cellStr(row, startCol + TableColumn.PPA);
-				const sip = cellStr(row, startCol + TableColumn.SiP);
-
-				// Skip empty or filler rows
-				if (!kra && !ppa) continue;
-				if (kra.toUpperCase() === "NONE" || ppa.toUpperCase() === "NONE")
-					continue;
-
-				// Handle Sub-total rows from the Excel template
-				if (
-					ppa.toUpperCase().includes("SUB-TOTAL") ||
-					kra.toUpperCase().includes("SUB-TOTAL")
-				) {
-					subTotals[category] = parseCost(row[startCol + TableColumn.Cost]);
-					continue;
-				}
-
-				// Skip headers/footers accidentally caught in data range
-				if (
-					ppa.toLowerCase().includes("total budget") ||
-					kra.toLowerCase().includes("total budget")
-				)
-					continue;
-
-				const estimatedCost = parseCost(row[startCol + TableColumn.Cost]);
-				if (!ppa && estimatedCost === 0) continue;
-
-				items.push({
-					kraArea: kra,
-					specificProgram: sip || "Unimplemented",
-					programActivity: ppa,
-					purpose: cellStr(row, startCol + TableColumn.Purpose),
-					performanceIndicator: cellStr(row, startCol + TableColumn.PerfInd),
-					resourceDescription: cellStr(row, startCol + TableColumn.ResDesc),
-					quantity: row[startCol + TableColumn.Qty]
-						? (row[startCol + TableColumn.Qty] as string | number)
-						: "",
-					estimatedCost,
-					accountTitle: cellStr(row, startCol + TableColumn.AccTitle),
-					accountCode: cellStr(row, startCol + TableColumn.AccCode),
-					category,
-				});
-			}
-		}
-
-		// Calculate missing subtotals if the Excel didn't provide them
-		for (const { category } of TEMPLATE_SECTIONS) {
-			if (subTotals[category] === undefined) {
-				const total = items
-					.filter((i) => i.category === category)
-					.reduce((sum, item) => sum + item.estimatedCost, 0);
-				if (total > 0) subTotals[category] = total;
-			}
-		}
-
-		const grandTotal = items.reduce((sum, item) => sum + item.estimatedCost, 0);
-		const hasSip = items.some(
-			(i) => i.specificProgram && i.specificProgram !== "Unimplemented",
-		);
-
-		results.push({ month, hasSip, items, subTotals, grandTotal });
-	}
-
-	// Sort sheets by calendar order
-	return results.sort(
-		(a, b) => MONTH_NAMES.indexOf(a.month) - MONTH_NAMES.indexOf(b.month),
-	);
-}
-
-export {
-	isMonthSheet,
-	validateSipTemplate,
-	normalizeMonthName,
-	parseCost,
-	cellStr,
-	fmt,
+/**
+ * Derives the MonthName from a "yyyy-MM-dd" date string.
+ * Returns null when the string cannot be parsed so callers can filter safely.
+ *
+ * Return type is `MonthName | null` (not `string | null`) so the compiler
+ * knows the value is safe to pass to any function that requires a MonthName.
+ */
+export const monthFromDate = (dateStr: string): MonthName | null => {
+	const d = new Date(dateStr);
+	if (isNaN(d.getTime())) return null;
+	return MONTH_ORDER[d.getMonth()]; // d.getMonth() is always 0–11, safe index
 };
+
+/**
+ * Builds the canonical "yyyy-MM-dd" date string for the first day of the
+ * given year + month name.
+ *
+ * Uses `monthIndex()` from constants so there is no direct `as` cast — if
+ * `month` is not a valid MonthName the index is -1 and the caller gets
+ * an invalid date string they can detect, rather than silent data corruption.
+ *
+ * Example: buildDateString(2024, "March") → "2024-03-01"
+ */
+export const buildDateString = (year: number, month: string): string => {
+	const idx = monthIndex(month) + 1; // monthIndex is 0-based; +1 for ISO months
+	const mm = String(Math.max(idx, 1)).padStart(2, "0");
+	return `${year}-${mm}-01`;
+};
+
+// ─── Budget helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Computes the budget utilisation ratio clamped to [0, 1].
+ *
+ * Returns 0 when annualBudget is null or ≤ 0 so UI components never divide
+ * by zero — they can treat 0 as "no budget configured".
+ */
+export const budgetRatio = (
+	spent: number,
+	annualBudget: number | null,
+): number => {
+	if (!annualBudget || annualBudget <= 0) return 0;
+	return Math.min(spent / annualBudget, 1);
+};
+
+/**
+ * Returns a Tailwind colour class based on budget utilisation.
+ *   < 75%  → green   (safe)
+ *   75–90% → yellow  (caution)
+ *   ≥ 90%  → red     (critical)
+ */
+export const budgetColour = (ratio: number): string => {
+	if (ratio >= 0.9) return "text-red-500";
+	if (ratio >= 0.75) return "text-yellow-500";
+	return "text-green-500";
+};
+
+// ─── Duplicate-check helpers ──────────────────────────────────────────────────
+
+/**
+ * Builds the stable composite key used to detect duplicates.
+ * Must match the backend's matching logic in CheckDuplicates.
+ *
+ * Key = "<1-based-month-number>|<activity-trimmed-lowercased>"
+ *
+ * Cost and quantity are intentionally excluded so that items with the same
+ * activity but a different budget are still surfaced as potential duplicates
+ * (the user may have updated the cost deliberately).
+ */
+export const duplicateKey = (date: string, activity: string): string => {
+	const d = new Date(date);
+	const month = isNaN(d.getTime()) ? "0" : String(d.getMonth() + 1);
+	return `${month}|${activity.trim().toLowerCase()}`;
+};
+
+// ─── General helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Typed shorthand for Array.prototype.every.
+ */
+export const allMatch = <T>(arr: T[], predicate: (x: T) => boolean): boolean =>
+	arr.every(predicate);
+
+/**
+ * Clamps a number between min and max (inclusive).
+ */
+export const clamp = (value: number, min: number, max: number): number =>
+	Math.max(min, Math.min(max, value));
