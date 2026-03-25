@@ -1,113 +1,233 @@
-// utils.ts — SchoolPlanTable
+// components/monthNavigation.tsx
 //
-// Pure, side-effect-free helper functions.
-// Every function here is unit-testable without a DOM or React context.
+// Horizontal pill-button month navigator.
+//
+// PROPS  (must match SchoolPlanTable.tsx call-site exactly)
+// ──────────────────────────────────────────────────────────
+//   sheets:        MonthSheetDto[]        — full sheet objects from the API
+//   activeMonth:   MonthName | null       — null = "Total" tab active
+//   onMonthChange: (m: MonthName | null)  — fired on click / keyboard nav
+//
+// WHY `sheets` INSTEAD OF `months: string[]`?
+// ─────────────────────────────────────────────
+// SchoolPlanTable already holds MonthSheetDto[].  Passing the full objects
+// lets this component show grand-total badges and item-count chips without
+// the parent pre-computing extra derived arrays.
 
+import { useRef, useEffect, useState, useCallback } from "react";
+import type { MonthSheetDto } from "../types";
+import { formatPeso } from "../utils";
 import { MONTH_ORDER, monthIndex, type MonthName } from "../constants";
 
-// ─── Formatting ───────────────────────────────────────────────────────────────
+// ─── Props ────────────────────────────────────────────────────────────────────
 
-/**
- * Formats a number as Philippine Peso with thousands separators and 2 decimal
- * places.  Example: formatPeso(1234567.8) → "₱1,234,567.80"
- *
- * We use `Intl.NumberFormat` instead of a hand-rolled regex because it handles
- * edge cases (negative numbers, very large values, locales) automatically.
- */
-export const formatPeso = (value: number): string =>
-	new Intl.NumberFormat("en-PH", {
-		style: "currency",
-		currency: "PHP",
-		minimumFractionDigits: 2,
-	}).format(value);
+interface Props {
+  sheets:        MonthSheetDto[];
+  activeMonth:   MonthName | null;
+  onMonthChange: (month: MonthName | null) => void;
+}
 
-/**
- * Returns a 3-letter abbreviated month label (e.g. "Jan", "Feb").
- * Falls back to the first 3 characters of the input if the month is unknown.
- */
-export const shortMonth = (month: string): string => month.slice(0, 3);
+// Sentinel string used as the Map key for the "Total" tab.
+// Never a real MonthName so it cannot collide with month strings.
+const TOTAL_KEY = "__TOTAL__" as const;
+type TabKey = MonthName | typeof TOTAL_KEY;
 
-// ─── Date helpers ─────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
-/**
- * Derives the MonthName from a "yyyy-MM-dd" date string.
- * Returns null when the string cannot be parsed so callers can filter safely.
- *
- * Return type is `MonthName | null` (not `string | null`) so the compiler
- * knows the value is safe to pass to any function that requires a MonthName.
- */
-export const monthFromDate = (dateStr: string): MonthName | null => {
-	const d = new Date(dateStr);
-	if (isNaN(d.getTime())) return null;
-	return MONTH_ORDER[d.getMonth()]; // d.getMonth() is always 0–11, safe index
-};
+export default function MonthNavigation({ sheets, activeMonth, onMonthChange }: Props) {
+  const scrollRef  = useRef<HTMLDivElement>(null);
+  // Shared ref map so auto-scroll and keyboard focus both work without
+  // leaking DOM knowledge outside this component.
+  const buttonRefs = useRef<Map<TabKey, HTMLButtonElement>>(new Map());
 
-/**
- * Builds the canonical "yyyy-MM-dd" date string for the first day of the
- * given year + month name.
- *
- * Uses `monthIndex()` from constants so there is no direct `as` cast — if
- * `month` is not a valid MonthName the index is -1 and the caller gets
- * an invalid date string they can detect, rather than silent data corruption.
- *
- * Example: buildDateString(2024, "March") → "2024-03-01"
- */
-export const buildDateString = (year: number, month: string): string => {
-	const idx = monthIndex(month) + 1; // monthIndex is 0-based; +1 for ISO months
-	const mm = String(Math.max(idx, 1)).padStart(2, "0");
-	return `${year}-${mm}-01`;
-};
+  const [canScrollLeft,  setCanScrollLeft]  = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
-// ─── Budget helpers ───────────────────────────────────────────────────────────
+  // Sort sheets into calendar order so the tab strip always reads Jan → Dec.
+  // monthIndex returns -1 for unrecognised strings, sorting them first.
+  const orderedSheets = [...sheets].sort(
+    (a, b) => monthIndex(a.month) - monthIndex(b.month)
+  );
 
-/**
- * Computes the budget utilisation ratio clamped to [0, 1].
- *
- * Returns 0 when annualBudget is null or ≤ 0 so UI components never divide
- * by zero — they can treat 0 as "no budget configured".
- */
-export const budgetRatio = (
-	spent: number,
-	annualBudget: number | null,
-): number => {
-	if (!annualBudget || annualBudget <= 0) return 0;
-	return Math.min(spent / annualBudget, 1);
-};
+  // Year-wide aggregates for the "Total" tab badge
+  const totalGrand     = sheets.reduce((s, m) => s + m.grandTotal, 0);
+  const totalItemCount = sheets.reduce((s, m) => s + m.items.length, 0);
+  const anyHasSip      = sheets.some((m) => m.hasSip);
 
-/**
- * Returns a Tailwind colour class based on budget utilisation.
- *   < 75%  → green   (safe)
- *   75–90% → yellow  (caution)
- *   ≥ 90%  → red     (critical)
- */
-export const budgetColour = (ratio: number): string => {
-	if (ratio >= 0.9) return "text-red-500";
-	if (ratio >= 0.75) return "text-yellow-500";
-	return "text-green-500";
-};
+  // Ordered key list: Total first, then months in calendar order.
+  // Arrow-key navigation follows this list left-to-right.
+  const orderedKeys: TabKey[] = [
+    TOTAL_KEY,
+    ...orderedSheets.map((s) => s.month as MonthName),
+  ];
 
-// ─── Duplicate-check helpers ──────────────────────────────────────────────────
+  // ── Auto-scroll active tab into view ─────────────────────────────────────
+  // Pure DOM effect — kept here, not in the parent, because the parent has
+  // no knowledge of which button element corresponds to which tab key.
+  useEffect(() => {
+    const key: TabKey = activeMonth ?? TOTAL_KEY;
+    const btn = buttonRefs.current.get(key);
+    if (!btn || !scrollRef.current) return;
+    btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [activeMonth]);
 
-/**
- * Builds the stable composite key used to detect duplicates.
- * Must match the backend's matching logic in CheckDuplicates.
- *
- * Key = "<1-based-month-number>|<activity-trimmed-lowercased>"
- *
- * Cost and quantity are intentionally excluded so that items with the same
- * activity but a different budget are still surfaced as potential duplicates
- * (the user may have updated the cost deliberately).
- */
-export const duplicateKey = (date: string, activity: string): string => {
-	const d = new Date(date);
-	const month = isNaN(d.getTime()) ? "0" : String(d.getMonth() + 1);
-	return `${month}|${activity.trim().toLowerCase()}`;
-};
+  // ── Scroll-shadow tracking ────────────────────────────────────────────────
+  const updateScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
 
-// ─── General helpers ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    updateScroll();
+    el.addEventListener("scroll", updateScroll, { passive: true });
+    window.addEventListener("resize", updateScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", updateScroll);
+      window.removeEventListener("resize", updateScroll);
+    };
+  }, [updateScroll]);
 
-/**
- * Typed shorthand for Array.prototype.every.
- */
-export const allMatch = <T,>(arr: T[], predicate: (x: T) => boolean): boolean =>
-	arr.every(predicate);
+  // ── Keyboard navigation (ARIA tab-list) ───────────────────────────────────
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const currentKey: TabKey = activeMonth ?? TOTAL_KEY;
+      const idx = orderedKeys.indexOf(currentKey);
+
+      let next: TabKey | null = null;
+      if (e.key === "ArrowRight") next = orderedKeys[Math.min(idx + 1, orderedKeys.length - 1)] ?? null;
+      if (e.key === "ArrowLeft")  next = orderedKeys[Math.max(idx - 1, 0)] ?? null;
+      if (e.key === "Home")       next = TOTAL_KEY;
+      if (e.key === "End")        next = orderedKeys[orderedKeys.length - 1] ?? null;
+
+      if (!next) return;
+      e.preventDefault();
+      onMonthChange(next === TOTAL_KEY ? null : (next as MonthName));
+      buttonRefs.current.get(next)?.focus();
+    },
+    [activeMonth, orderedKeys, onMonthChange]
+  );
+
+  if (sheets.length === 0) return null;
+
+  return (
+    <div className="relative">
+      {canScrollLeft && (
+        <div aria-hidden className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 z-10"
+          style={{ background: "linear-gradient(to right, var(--heroui-background,#fff) 20%, transparent)" }} />
+      )}
+      {canScrollRight && (
+        <div aria-hidden className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 z-10"
+          style={{ background: "linear-gradient(to left, var(--heroui-background,#fff) 20%, transparent)" }} />
+      )}
+
+      <div
+        ref={scrollRef}
+        role="tablist"
+        aria-label="Month navigation"
+        onKeyDown={handleKeyDown}
+        className="flex gap-1.5 overflow-x-auto py-1"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+      >
+        {/* Total tab */}
+        <MonthTab
+          tabKey={TOTAL_KEY}
+          label="Total"
+          total={totalGrand}
+          itemCount={totalItemCount}
+          hasSip={anyHasSip}
+          isActive={activeMonth === null}
+          isSummary
+          onClick={() => onMonthChange(null)}
+          buttonRefs={buttonRefs}
+        />
+
+        <div className="w-px bg-default-200 self-stretch shrink-0 mx-0.5" aria-hidden />
+
+        {orderedSheets.map((sheet) => (
+          <MonthTab
+            key={sheet.month}
+            tabKey={sheet.month as MonthName}
+            label={sheet.month}
+            total={sheet.grandTotal}
+            itemCount={sheet.items.length}
+            hasSip={sheet.hasSip}
+            isActive={activeMonth === sheet.month}
+            onClick={() => onMonthChange(sheet.month as MonthName)}
+            buttonRefs={buttonRefs}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── MonthTab ─────────────────────────────────────────────────────────────────
+// Internal sub-component — not exported. Registers itself in the shared
+// buttonRefs map via a callback ref so auto-scroll and keyboard focus work.
+
+interface MonthTabProps {
+  tabKey:     TabKey;
+  label:      string;
+  total:      number;
+  itemCount:  number;
+  hasSip:     boolean;
+  isActive:   boolean;
+  isSummary?: boolean;
+  onClick:    () => void;
+  buttonRefs: React.MutableRefObject<Map<TabKey, HTMLButtonElement>>;
+}
+
+function MonthTab({
+  tabKey, label, total, itemCount,
+  hasSip, isActive, isSummary = false,
+  onClick, buttonRefs,
+}: MonthTabProps) {
+  const setRef = (el: HTMLButtonElement | null) => {
+    if (el) buttonRefs.current.set(tabKey, el);
+    else    buttonRefs.current.delete(tabKey);
+  };
+
+  const activeStyle   = isSummary ? "bg-default-700 text-white shadow-sm" : "bg-primary text-white shadow-sm";
+  const inactiveStyle = "bg-default-100 text-default-600 hover:bg-default-200";
+
+  return (
+    <button
+      ref={setRef}
+      role="tab"
+      aria-selected={isActive}
+      onClick={onClick}
+      className={[
+        "relative flex flex-col items-start gap-0.5",
+        "px-3 pt-2 pb-2.5 rounded-xl text-left shrink-0",
+        "transition-all duration-150",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
+        isActive ? activeStyle : inactiveStyle,
+      ].join(" ")}
+    >
+      {hasSip && (
+        <span aria-label="Contains SIP items"
+          className={["absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full",
+            isActive ? "bg-white/60" : "bg-green-400"].join(" ")} />
+      )}
+
+      <span className="text-sm font-semibold leading-none">
+        <span className="hidden sm:inline">{label}</span>
+        <span className="sm:hidden">{label.slice(0, 3)}</span>
+      </span>
+
+      <span className={["text-xs leading-none font-mono tabular-nums",
+        isActive ? "text-white/80" : "text-default-400"].join(" ")}>
+        {formatPeso(total)}
+      </span>
+
+      <span className={["text-[10px] leading-none px-1.5 py-0.5 rounded-full",
+        isActive ? "bg-white/20 text-white" : "bg-default-200 text-default-500"].join(" ")}>
+        {itemCount} {itemCount === 1 ? "item" : "items"}
+      </span>
+    </button>
+  );
+}

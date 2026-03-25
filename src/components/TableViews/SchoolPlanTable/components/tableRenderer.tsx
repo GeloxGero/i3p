@@ -1,19 +1,12 @@
 // components/tableRenderer.tsx
 //
-// Renders the data table for the currently-selected month sheet.
-// Column visibility is driven by the `columns` prop from the parent —
-// this component never mutates it.
+// Renders the month-sheet data table.
 //
-// DESIGN NOTES
-// ────────────
-// • Items are already grouped by category in the DTO (the backend's
-//   BuildMonthDtos orders them by CategoryOrder), so we just render
-//   a category header row whenever the category changes.
-// • Subtotals and grand total come from the DTO; we do not recompute them
-//   here so the numbers always match the backend's source of truth.
-// • Optimistic delete: we call onDeleteItem and let the parent re-fetch.
-//   The row does not disappear until the parent updates the prop, which is
-//   fast enough that no local "pending" state is needed.
+// FIX: onDeleteItem typed as `(id: number) => void | Promise<void>`
+// ────────────────────────────────────────────────────────────────────
+// SchoolPlanTable.handleDeleteItem is async (returns Promise<void>).
+// Previously the Props interface declared `void` which caused TS2322.
+// The union `void | Promise<void>` accepts both sync and async handlers.
 
 import { useMemo } from "react";
 import type {
@@ -28,12 +21,11 @@ import { CATEGORY_ORDER, COLUMN_LABELS } from "../constants";
 interface Props {
 	sheet: MonthSheetDto;
 	columns: ColumnVisibility;
-	onDeleteItem: (id: number) => void;
+	// Accepts both sync and async delete handlers — the parent uses async.
+	onDeleteItem: (id: number) => void | Promise<void>;
 }
 
 export default function TableRenderer({ sheet, columns, onDeleteItem }: Props) {
-	// Build the ordered list of visible column keys once; recomputes only when
-	// the columns prop reference changes (toggling a column in ActionsBar).
 	const visibleCols = useMemo(
 		() =>
 			(Object.keys(columns) as (keyof ColumnVisibility)[]).filter(
@@ -42,7 +34,6 @@ export default function TableRenderer({ sheet, columns, onDeleteItem }: Props) {
 		[columns],
 	);
 
-	// Group items by category preserving CategoryOrder
 	const grouped = useMemo(() => {
 		const map = new Map<string, SchoolPlanItemDto[]>();
 		for (const item of sheet.items) {
@@ -58,7 +49,7 @@ export default function TableRenderer({ sheet, columns, onDeleteItem }: Props) {
 
 	if (sheet.items.length === 0) {
 		return (
-			<div className="text-center py-12 text-default-400 text-sm">
+			<div className="text-center py-16 text-default-400 text-sm">
 				No items for {sheet.month}.
 			</div>
 		);
@@ -77,15 +68,15 @@ export default function TableRenderer({ sheet, columns, onDeleteItem }: Props) {
 								{COLUMN_LABELS[key]}
 							</th>
 						))}
-						<th className="px-3 py-2.5 text-xs font-semibold text-default-500 uppercase tracking-wide w-10" />
+						<th className="w-8" />
 					</tr>
 				</thead>
 
 				<tbody>
 					{grouped.map(({ category, items }) => (
 						<>
-							{/* Category section header */}
-							<tr key={`cat-${category}`} className="bg-default-100">
+							{/* Category header row */}
+							<tr key={`cat-${category}`} className="bg-default-100/60">
 								<td
 									colSpan={visibleCols.length + 1}
 									className="px-3 py-1.5 text-xs font-bold text-default-600 uppercase tracking-wider"
@@ -105,7 +96,6 @@ export default function TableRenderer({ sheet, columns, onDeleteItem }: Props) {
 											<CellValue colKey={key} item={item} />
 										</td>
 									))}
-									{/* Delete button — only visible on row hover */}
 									<td className="px-2 py-2 text-right">
 										<button
 											onClick={() => onDeleteItem(item.id)}
@@ -118,14 +108,14 @@ export default function TableRenderer({ sheet, columns, onDeleteItem }: Props) {
 								</tr>
 							))}
 
-							{/* Category subtotal row */}
+							{/* Category subtotal */}
 							<tr
 								key={`sub-${category}`}
 								className="bg-default-50 border-b border-default-200"
 							>
 								<td
 									colSpan={visibleCols.length}
-									className="px-3 py-1.5 text-right text-xs font-semibold text-default-600"
+									className="px-3 py-1.5 text-right text-xs font-semibold text-default-500"
 								>
 									Subtotal — {category}
 								</td>
@@ -137,7 +127,7 @@ export default function TableRenderer({ sheet, columns, onDeleteItem }: Props) {
 					))}
 
 					{/* Grand total */}
-					<tr className="bg-primary/5 font-bold">
+					<tr className="bg-primary/5 font-semibold">
 						<td
 							colSpan={visibleCols.length}
 							className="px-3 py-2.5 text-right text-sm text-default-700"
@@ -154,7 +144,8 @@ export default function TableRenderer({ sheet, columns, onDeleteItem }: Props) {
 	);
 }
 
-// ─── Cell renderer (maps column key → formatted value) ───────────────────────
+// ─── Cell renderers ───────────────────────────────────────────────────────────
+
 function CellValue({
 	colKey,
 	item,
@@ -166,7 +157,7 @@ function CellValue({
 		case "kraArea":
 			return <span className="text-default-700">{item.kraArea || "—"}</span>;
 		case "specificProgram":
-			return <span>{item.specificProgram}</span>;
+			return <span>{item.specificProgram || "—"}</span>;
 		case "programActivity":
 			return <span className="font-medium">{item.programActivity || "—"}</span>;
 		case "purpose":
@@ -202,12 +193,16 @@ function CellValue({
 		case "category":
 			return <CategoryBadge category={item.category} />;
 		case "arCode":
+			if (!item.arCode)
+				return <span className="text-xs text-default-300 italic">pending</span>;
 			return (
-				<span className="font-mono text-xs text-default-500">
-					{item.arCode ?? (
-						<span className="italic text-default-300">pending</span>
-					)}
-				</span>
+				<a
+					href={`/projects/detail?ar=${encodeURIComponent(item.arCode)}`}
+					className="font-mono text-xs text-primary hover:underline whitespace-nowrap"
+					title="View AR detail"
+				>
+					{item.arCode}
+				</a>
 			);
 		case "status":
 			return <StatusBadge status={item.status} verified={item.isVerified} />;

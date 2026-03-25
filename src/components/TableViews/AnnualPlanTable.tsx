@@ -25,7 +25,7 @@ import { useEffect, useState, useRef } from "react";
 import { $token } from "../../store/authStore";
 import { useStore } from "@nanostores/react";
 import * as XLSX from "xlsx";
-import { toast } from "../Toast";
+import Toast from "../Toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -391,18 +391,23 @@ export default function AnnualPlanTable() {
 			);
 			if (!res.ok) {
 				const msg = await res.text();
-				toast.error("Import failed", msg);
+				<Toast
+					message={`Import Failed ${msg}`}
+					type="error"
+					onClose={() => {}}
+				/>;
 				return;
 			}
 			const data = await res.json();
 			await fetchPlanHeaders();
-			toast.success(
-				"Import successful",
-				`${data.itemCount} items imported · ${fmtPeso(Number(data.yearTotal))}`,
-			);
+			<Toast message="Import successful" onClose={() => {}} />;
 			onClose();
 		} catch (err) {
-			toast.error("Upload failed", "Could not connect to server.");
+			<Toast
+				message="Upload failed, could not connect to server"
+				type="error"
+				onClose={() => {}}
+			/>;
 		} finally {
 			setUploading(false);
 		}

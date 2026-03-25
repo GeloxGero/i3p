@@ -1,879 +1,407 @@
-import { useEffect, useState, useCallback, useRef } from "react";
-import { useStore } from "@nanostores/react";
-import {
-	Button,
-	Chip,
-	Spinner,
-	Table,
-	TableBody,
-	TableCell,
-	TableColumn,
-	TableHeader,
-	TableRow,
-	Modal,
-	ModalBody,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-	useDisclosure,
-	Input,
-	Tooltip,
-	Progress,
-} from "@heroui/react";
-import { $token } from "../store/authStore";
-import { $currentArCode } from "../store/tableStore";
-import { apiRequest } from "../api/TokenService";
+// src/components/ArDetailPage.tsx
+//
+// Detail page for a single ImplementationItem identified by its AR code.
+// Reached by clicking an AR code link in the table: /projects/detail?ar=AR-2024-XXXXXX
+//
+// SECTIONS
+// ────────
+// 1. Header  — AR code, status badge, back link
+// 2. Item details card — all fields from the ImplementationItem
+// 3. Cross-references list (PlanCrossReference rows linked to this item)
+// 4. List items seeded to this AR code
+// 5. DEV TOOLS — seed button (adds a list item to this AR code)
+//
+// SEED BUTTON BEHAVIOUR
+// ─────────────────────
+// Every click calls POST /api/Ar/{arCode}/seed which adds one random list item
+// whose cost is within the remaining budget (estimatedCost − sum of existing items).
+// If adding another item would exceed the budget the backend returns 400 and the
+// frontend shows a warning banner (non-blocking — the button is just disabled).
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { useState, useEffect, useCallback } from "react";
+import { formatPeso } from "./TableViews/SchoolPlanTable/utils";
 
-interface ArAppItem {
+// ─── API types ────────────────────────────────────────────────────────────────
+
+interface ArItem {
 	id: number;
-	arCode: string | null;
-	itemDescription: string | null;
-	specification: string | null;
-	unitOfMeasure: string | null;
-	totalQuantity: number | null;
-	price: number | null;
-	totalAmount: number | null;
-	securePhotoUrl: string | null;
-	photoPath: string | null;
-	isPhotoVerified: boolean;
-	verifiedAt: string | null;
-	verifiedBy: string | null;
-}
-
-interface ArDetail {
 	arCode: string;
-	sipItemId: number;
-	activity: string | null;
-	kra: string | null;
-	category: string | null;
-	estimatedCost: number | null;
-	sipIsVerified: boolean;
-	appItems: ArAppItem[];
-	totalAppCost: number;
-	verifiedCount: number;
-	totalCount: number;
+	date: string;
+	kra: string;
+	sipProgram: string;
+	activity: string;
+	purpose: string | null;
+	indicator: string | null;
+	resources: string | null;
+	quantity: string | null;
+	estimatedCost: number;
+	accountTitle: string | null;
+	accountCode: string | null;
+	expenditureType: string;
+	isVerified: boolean;
+	status: number;
 }
 
-function fmt(n: number | null | undefined) {
-	if (n == null) return "—";
-	return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+interface ListItem {
+	id: number;
+	description: string;
+	quantity: number;
+	unitCost: number;
+	totalCost: number;
+	createdAt: string;
 }
 
-// ─── Image Viewer Modal ───────────────────────────────────────────────────────
-
-function ImageViewerModal({
-	item,
-	isOpen,
-	onClose,
-	token,
-	onVerified,
-}: {
-	item: ArAppItem | null;
-	isOpen: boolean;
-	onClose: () => void;
-	token: string | null;
-	onVerified: () => void;
-}) {
-	const [verifying, setVerifying] = useState(false);
-	const [imgError, setImgError] = useState(false);
-
-	// Reset error state when item changes
-	useEffect(() => {
-		setImgError(false);
-	}, [item]);
-
-	if (!item) return null;
-
-	const photoUrl = item.securePhotoUrl;
-	//const photoUrl = item.photoPath ? `${API}/${item.photoPath}` : null;
-
-	// Build a direct download URL — append ?download=1 so the server sends
-	// Content-Disposition: attachment if it supports it, otherwise it just opens.
-
-	//this part contains download logic
-	//----------------------------
-
-	// const downloadUrl = photoUrl;
-	// const filename = item.photoPath?.split("/").pop() ?? "receipt";
-
-	const verify = async () => {
-		setVerifying(true);
-		try {
-			await apiRequest(
-				`api/Ar/verify-photo/${item.id}`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${token}`,
-					},
-					body: JSON.stringify({ verifiedBy: "admin" }),
-				},
-				token,
-			);
-			onVerified();
-			onClose();
-		} finally {
-			setVerifying(false);
-		}
-	};
-
-	//download logic to be implemented
-	// const downloadFile = () => {
-	// 	if (!downloadUrl) return;
-	// 	const a = document.createElement("a");
-	// 	a.href = downloadUrl;
-	// 	a.download = filename;
-	// 	a.target = "_blank";
-	// 	document.body.appendChild(a);
-	// 	a.click();
-	// 	document.body.removeChild(a);
-	// };
-
-	return (
-		<Modal
-			isOpen={isOpen}
-			onOpenChange={onClose}
-			size="3xl"
-			scrollBehavior="inside"
-		>
-			<ModalContent>
-				<ModalHeader className="flex flex-col gap-0.5">
-					<div className="flex items-center gap-2">
-						<span>Photo Evidence</span>
-						{item.isPhotoVerified && (
-							<Chip size="sm" color="success" variant="flat">
-								Verified ✓
-							</Chip>
-						)}
-					</div>
-					<span className="text-sm font-normal text-default-500 truncate">
-						{item.itemDescription ?? "APP Item"}
-					</span>
-				</ModalHeader>
-
-				<ModalBody className="px-6 pb-2">
-					{/* ── Image / PDF display ── */}
-					{!photoUrl ? (
-						<div className="flex flex-col items-center justify-center h-64 bg-default-50 rounded-xl border border-dashed border-default-200 text-default-400">
-							<svg
-								aria-hidden
-								width="40"
-								height="40"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth={1.5}
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								className="mb-3 opacity-40"
-							>
-								<rect x="3" y="3" width="18" height="18" rx="2" />
-								<circle cx="8.5" cy="8.5" r="1.5" />
-								<polyline points="21 15 16 10 5 21" />
-							</svg>
-							<span className="text-sm">No photo uploaded</span>
-						</div>
-					) : item.securePhotoUrl?.toLowerCase().endsWith(".pdf") ? (
-						// PDF — embed viewer
-						<div className="w-full h-[500px] rounded-xl overflow-hidden border border-default-200">
-							<iframe
-								src={photoUrl}
-								className="w-full h-full"
-								title="Receipt PDF"
-							/>
-						</div>
-					) : imgError ? (
-						<div className="flex flex-col items-center justify-center h-64 bg-danger-50 rounded-xl border border-danger-200 text-danger-500 gap-2">
-							<span className="text-sm font-medium">Could not load image</span>
-							<Button
-								size="sm"
-								variant="flat"
-								color="primary"
-								onPress={() => {}}
-							>
-								Download instead
-							</Button>
-						</div>
-					) : (
-						// Image — show full-size with zoom-on-hover feel
-						<div className="relative w-full rounded-xl overflow-hidden border border-default-200 bg-default-50 flex items-center justify-center min-h-[300px]">
-							<img
-								src={photoUrl}
-								alt={`Receipt for ${item.itemDescription}`}
-								className="max-w-full max-h-[520px] object-contain"
-								onError={() => setImgError(true)}
-							/>
-							{/* Overlay download button */}
-							<a
-								href={photoUrl}
-								download={"Image"}
-								target="_blank"
-								rel="noreferrer"
-								className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/60 text-white text-xs font-medium hover:bg-black/80 transition-colors backdrop-blur-sm"
-							>
-								<svg
-									aria-hidden
-									width="13"
-									height="13"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth={2}
-									strokeLinecap="round"
-									strokeLinejoin="round"
-								>
-									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-									<polyline points="7 10 12 15 17 10" />
-									<line x1="12" y1="15" x2="12" y2="3" />
-								</svg>
-								Download
-							</a>
-						</div>
-					)}
-
-					{/* ── Item details ── */}
-					<div className="grid grid-cols-2 gap-3 mt-4 text-sm">
-						<div className="bg-default-50 rounded-xl p-3 flex flex-col gap-0.5">
-							<span className="text-xs text-default-400 uppercase tracking-wide">
-								Unit Price
-							</span>
-							<span className="font-semibold">{fmt(item.price)}</span>
-						</div>
-						<div className="bg-default-50 rounded-xl p-3 flex flex-col gap-0.5">
-							<span className="text-xs text-default-400 uppercase tracking-wide">
-								Total Amount
-							</span>
-							<span className="font-semibold text-primary">
-								{fmt(item.totalAmount)}
-							</span>
-						</div>
-						<div className="bg-default-50 rounded-xl p-3 flex flex-col gap-0.5">
-							<span className="text-xs text-default-400 uppercase tracking-wide">
-								Quantity
-							</span>
-							<span className="font-semibold">
-								{item.totalQuantity ?? "—"} {item.unitOfMeasure ?? ""}
-							</span>
-						</div>
-						<div className="bg-default-50 rounded-xl p-3 flex flex-col gap-0.5">
-							<span className="text-xs text-default-400 uppercase tracking-wide">
-								Verification
-							</span>
-							{item.isPhotoVerified ? (
-								<span className="text-success-600 font-semibold text-xs">
-									✓ Verified by {item.verifiedBy ?? "admin"}
-									{item.verifiedAt &&
-										` on ${new Date(item.verifiedAt).toLocaleDateString("en-PH")}`}
-								</span>
-							) : (
-								<span className="text-warning-600 font-semibold text-xs">
-									Pending review
-								</span>
-							)}
-						</div>
-					</div>
-				</ModalBody>
-
-				<ModalFooter>
-					{/* Download button always available */}
-					{photoUrl && (
-						<Button
-							variant="flat"
-							onPress={() => {}}
-							startContent={
-								<svg
-									aria-hidden
-									width="14"
-									height="14"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth={2}
-									strokeLinecap="round"
-									strokeLinejoin="round"
-								>
-									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-									<polyline points="7 10 12 15 17 10" />
-									<line x1="12" y1="15" x2="12" y2="3" />
-								</svg>
-							}
-						>
-							Download
-						</Button>
-					)}
-					<Button variant="flat" onPress={onClose}>
-						Close
-					</Button>
-					{/* Verify button — only shown when photo exists and not yet verified */}
-					{photoUrl && !item.isPhotoVerified && (
-						<Button color="success" isLoading={verifying} onPress={verify}>
-							✓ Mark as Verified
-						</Button>
-					)}
-				</ModalFooter>
-			</ModalContent>
-		</Modal>
-	);
+interface ArDetailResponse {
+	item: ArItem;
+	listItems: ListItem[];
+	totalListCost: number;
+	remainingBudget: number;
 }
 
-// ─── Photo Cell ───────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 
-function PhotoCell({
-	item,
-	token,
-	onRefresh,
-	onViewPhoto,
-}: {
-	item: ArAppItem;
-	token: string | null;
-	onRefresh: () => void;
-	onViewPhoto: (item: ArAppItem) => void;
-}) {
-	const inputRef = useRef<HTMLInputElement>(null);
-	const [uploading, setUploading] = useState(false);
-
-	const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		setUploading(true);
-		const fd = new FormData();
-		fd.append("photo", file);
-		await apiRequest(
-			`api/Ar/photo/${item.id}`,
-			{
-				method: "POST",
-				body: fd,
-			},
-			token,
-		);
-		setUploading(false);
-		onRefresh();
-		e.target.value = "";
-	};
-
-	if (item.isPhotoVerified) {
-		return (
-			<div className="flex items-center gap-1.5 flex-wrap">
-				<Chip size="sm" color="success" variant="flat">
-					✓ Verified
-				</Chip>
-				<button
-					onClick={() => onViewPhoto(item)}
-					className="text-xs text-primary underline hover:text-primary-600 transition-colors"
-				>
-					View photo
-				</button>
-			</div>
-		);
-	}
-
-	if (item.securePhotoUrl) {
-		return (
-			<div className="flex items-center gap-2 flex-wrap">
-				<button
-					onClick={() => onViewPhoto(item)}
-					className="text-xs text-primary underline hover:text-primary-600 transition-colors font-medium"
-				>
-					View photo ↗
-				</button>
-				<Chip size="sm" color="warning" variant="flat">
-					Pending review
-				</Chip>
-			</div>
-		);
-	}
-
-	return (
-		<>
-			<input
-				ref={inputRef}
-				type="file"
-				accept="image/*,.pdf"
-				className="hidden"
-				onChange={upload}
-			/>
-			<Button
-				size="sm"
-				variant="flat"
-				isLoading={uploading}
-				onPress={() => inputRef.current?.click()}
-			>
-				Upload photo
-			</Button>
-		</>
-	);
-}
-
-// ─── Add Item Modal ───────────────────────────────────────────────────────────
-
-function AddItemModal({
-	sipItemId,
-	arCode,
-	isOpen,
-	onClose,
-	onAdded,
-	token,
-}: {
-	sipItemId: number;
+interface Props {
 	arCode: string;
-	isOpen: boolean;
-	onClose: () => void;
-	onAdded: () => void;
-	token: string | null;
-}) {
-	const blank = {
-		itemDescription: "",
-		specification: "",
-		unitOfMeasure: "",
-		totalQuantity: "",
-		price: "",
-	};
-	const [form, setForm] = useState(blank);
-	const [saving, setSaving] = useState(false);
-	const set = (k: keyof typeof form) => (v: string) =>
-		setForm((f) => ({ ...f, [k]: v }));
-	const totalPreview = Number(form.totalQuantity) * Number(form.price) || null;
-	const save = async () => {
-		setSaving(true);
-		try {
-			await apiRequest(
-				`api/Ar/add-item/${sipItemId}`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${token}`,
-					},
-					body: JSON.stringify({
-						itemDescription: form.itemDescription,
-						specification: form.specification,
-						unitOfMeasure: form.unitOfMeasure,
-						totalQuantity: Number(form.totalQuantity) || null,
-						price: Number(form.price) || null,
-					}),
-				},
-				token,
-			);
-			setForm(blank);
-			onAdded();
-			onClose();
-		} finally {
-			setSaving(false);
-		}
-	};
-	return (
-		<Modal isOpen={isOpen} onOpenChange={onClose} size="lg">
-			<ModalContent>
-				<ModalHeader>
-					<div className="flex flex-col gap-0.5">
-						<span>Add APP Item</span>
-						<span className="text-sm font-normal text-default-500 font-mono">
-							{arCode}
-						</span>
-					</div>
-				</ModalHeader>
-				<ModalBody>
-					<div className="grid grid-cols-2 gap-3">
-						<Input
-							label="Item Description"
-							value={form.itemDescription}
-							onValueChange={set("itemDescription")}
-							className="col-span-2"
-						/>
-						<Input
-							label="Specification"
-							value={form.specification}
-							onValueChange={set("specification")}
-							className="col-span-2"
-						/>
-						<Input
-							label="Unit of Measure"
-							value={form.unitOfMeasure}
-							onValueChange={set("unitOfMeasure")}
-						/>
-						<Input
-							label="Total Quantity"
-							value={form.totalQuantity}
-							onValueChange={set("totalQuantity")}
-							type="number"
-						/>
-						<Input
-							label="Price (₱)"
-							value={form.price}
-							onValueChange={set("price")}
-							type="number"
-						/>
-						<div className="flex items-center gap-2 text-sm text-default-500">
-							Total:{" "}
-							<span className="font-semibold text-default-800">
-								{fmt(totalPreview)}
-							</span>
-						</div>
-					</div>
-				</ModalBody>
-				<ModalFooter>
-					<Button variant="flat" onPress={onClose}>
-						Cancel
-					</Button>
-					<Button
-						color="primary"
-						isLoading={saving}
-						onPress={save}
-						isDisabled={!form.itemDescription || !form.price}
-					>
-						Add Item
-					</Button>
-				</ModalFooter>
-			</ModalContent>
-		</Modal>
-	);
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
-interface ArDetailPageProps {
-	arCode?: string | Record<string, string | undefined>;
-}
-
-export default function ArDetailPage({
-	arCode: arCodeProp,
-}: ArDetailPageProps) {
-	const token = useStore($token);
-	const arCode = useStore($currentArCode);
-
-	const [detail, setDetail] = useState<ArDetail | null>(null);
+export default function ArDetailPage({ arCode }: Props) {
+	const [detail, setDetail] = useState<ArDetailResponse | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [notFound, setNotFound] = useState(false);
+	const [seeding, setSeeding] = useState(false);
+	const [seedError, setSeedError] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
 
-	// Add item modal
-	const {
-		isOpen: addOpen,
-		onOpen: openAdd,
-		onClose: closeAdd,
-	} = useDisclosure();
-	// Image viewer modal
-	const {
-		isOpen: imgOpen,
-		onOpen: openImg,
-		onClose: closeImg,
-	} = useDisclosure();
-	const [viewingItem, setViewingItem] = useState<ArAppItem | null>(null);
-
-	const fetchDetail = useCallback(async () => {
+	// ── Fetch detail ─────────────────────────────────────────────────────────
+	const loadDetail = useCallback(async () => {
 		if (!arCode) return;
-		const cleanArCode = arCode.includes("/")
-			? arCode.split("/").pop()!
-			: arCode;
 		setLoading(true);
+		setError(null);
 		try {
-			const data = await apiRequest(
-				`api/Ar/${encodeURIComponent(cleanArCode)}`,
-				{},
-				token,
-			);
-			setDetail(data);
-			console.log(data);
-			setNotFound(false);
-		} catch (err: any) {
-			// 2. Handle the error thrown by apiRequest
-			// Note: You'll need to check if the error message contains '404'
-			// or refine your apiRequest to throw specific error types.
-			if (err.message.includes("404") || err.message.includes("Not Found")) {
-				setNotFound(true);
-			} else {
-				console.error("Fetch error:", err);
-			}
+			const res = await fetch(`/api/Ar/${encodeURIComponent(arCode)}`);
+			if (!res.ok)
+				throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
+			setDetail(await res.json());
+		} catch (e) {
+			setError(e instanceof Error ? e.message : "Failed to load AR detail.");
 		} finally {
-			console.log("Detail: " + detail);
 			setLoading(false);
 		}
-	}, [arCode, token]);
+	}, [arCode]);
 
 	useEffect(() => {
-		const params = new URLSearchParams(window.location.search);
-		const code = params.get("code");
-		if (code) {
-			$currentArCode.set(code);
-		}
-		fetchDetail();
-	}, [fetchDetail]);
+		loadDetail();
+	}, [loadDetail]);
 
-	const handleViewPhoto = (item: ArAppItem) => {
-		setViewingItem(item);
-		openImg();
+	// ── Seed one list item ────────────────────────────────────────────────────
+	//
+	// WHY A SEED BUTTON PER CLICK?
+	// ─────────────────────────────
+	// The dev tool is intentionally simple: every click adds exactly one item.
+	// This mirrors the way real list items would be added (one at a time) and
+	// makes it easy to verify budget enforcement without a complex form.
+	const handleSeed = async () => {
+		if (!detail || detail.remainingBudget <= 0) return;
+		setSeedError(null);
+		setSeeding(true);
+		try {
+			const res = await fetch(`/api/Ar/${encodeURIComponent(arCode)}/seed`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+			});
+			if (!res.ok) {
+				const msg = await res.text().catch(() => `HTTP ${res.status}`);
+				setSeedError(msg);
+				return;
+			}
+			await loadDetail(); // refresh to show new item
+		} catch (e) {
+			setSeedError(e instanceof Error ? e.message : "Seed failed.");
+		} finally {
+			setSeeding(false);
+		}
 	};
 
-	if (loading || !arCode)
-		return (
-			<div className="flex justify-center items-center h-64">
-				<Spinner label="Loading AR details…" />
-			</div>
-		);
+	// ── Render ────────────────────────────────────────────────────────────────
 
-	if (notFound || !detail) {
+	if (!arCode) {
+		return <ErrorState message="No AR code provided in the URL." />;
+	}
+
+	if (loading) {
 		return (
-			<div className="p-10 text-center">
-				<p className="text-default-400 text-lg mb-2">AR code not found</p>
-				<p className="font-mono text-default-600 font-bold">{arCode}</p>
-				<Button variant="flat" className="mt-4" onPress={() => history.back()}>
-					← Go back
-				</Button>
+			<div className="p-6 flex flex-col gap-4 animate-pulse">
+				{[80, 200, 120].map((h, i) => (
+					<div
+						key={i}
+						className="rounded-xl bg-default-100"
+						style={{ height: h }}
+					/>
+				))}
 			</div>
 		);
 	}
 
-	const verificationPct =
-		detail.totalCount > 0
-			? Math.round((detail.verifiedCount / detail.totalCount) * 100)
+	if (error || !detail) {
+		return <ErrorState message={error ?? "Item not found."} />;
+	}
+
+	const { item, listItems, totalListCost, remainingBudget } = detail;
+	const budgetPct =
+		item.estimatedCost > 0
+			? Math.min((totalListCost / item.estimatedCost) * 100, 100)
 			: 0;
-	const costDelta =
-		detail.estimatedCost != null
-			? detail.totalAppCost - detail.estimatedCost
-			: null;
+	const overBudget = remainingBudget <= 0;
 
 	return (
-		<div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto">
-			{/* Back */}
-			<button
-				onClick={() => history.back()}
-				className="flex items-center gap-1.5 text-sm text-default-400 hover:text-primary w-fit transition-colors"
+		<div className="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-6">
+			{/* ── Back link ────────────────────────────────────────────────── */}
+			<a
+				href="/projects"
+				className="text-sm text-default-400 hover:text-primary transition-colors flex items-center gap-1"
 			>
-				<svg
-					aria-hidden
-					width="16"
-					height="16"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					strokeWidth={2}
-					strokeLinecap="round"
-					strokeLinejoin="round"
-				>
-					<path d="m15 18-6-6 6-6" />
-				</svg>
-				Back to School Implementation Plan
-			</button>
+				← Back to Projects
+			</a>
 
-			{/* Summary card */}
-			<div className="bg-gradient-to-br from-primary/8 via-primary/5 to-transparent border border-primary/20 rounded-2xl p-6 flex flex-col gap-5">
-				<div className="flex flex-wrap items-start justify-between gap-4">
-					<div className="flex flex-col gap-1">
-						<div className="flex items-center gap-2 flex-wrap">
-							<span className="font-mono text-xl font-bold text-primary tracking-wide">
-								{detail.arCode}
-							</span>
-							{detail.sipIsVerified ? (
-								<Chip color="success" size="sm" variant="solid">
-									All Items Verified ✓
-								</Chip>
-							) : (
-								<Chip color="warning" size="sm" variant="flat">
-									Pending Verification
-								</Chip>
-							)}
-						</div>
-						<p className="text-default-700 font-medium text-base">
-							{detail.activity ?? "—"}
-						</p>
-						<p className="text-default-400 text-sm">
-							{[detail.kra, detail.category].filter(Boolean).join(" · ")}
-						</p>
-					</div>
-					<div className="flex gap-6 items-start">
-						<div className="text-right">
-							<p className="text-xs text-default-400 uppercase tracking-wide mb-0.5">
-								Program Estimated Cost
-							</p>
-							<p className="text-2xl font-bold text-default-700">
-								{fmt(detail.estimatedCost)}
-							</p>
-						</div>
-						<div className="text-right">
-							<p className="text-xs text-default-400 uppercase tracking-wide mb-0.5">
-								Current Total Cost
-							</p>
-							<p className="text-2xl font-bold text-primary">
-								{fmt(detail.totalAppCost)}
-							</p>
-							{costDelta != null && (
-								<p
-									className={`text-xs font-semibold mt-0.5 ${costDelta > 0 ? "text-danger-500" : "text-success-600"}`}
-								>
-									{costDelta > 0 ? "+" : ""}
-									{fmt(costDelta)} vs estimate
-								</p>
-							)}
-						</div>
-					</div>
+			{/* ── Header ───────────────────────────────────────────────────── */}
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<p className="text-xs text-default-400 font-mono mb-1">
+						{item.arCode}
+					</p>
+					<h1 className="text-xl font-bold text-default-900">
+						{item.activity || "Unnamed Activity"}
+					</h1>
+					<p className="text-sm text-default-500 mt-1">{item.kra}</p>
 				</div>
-				<div className="flex flex-col gap-1.5">
-					<div className="flex justify-between text-xs text-default-500">
-						<span>Photo Verification Progress</span>
-						<span>
-							{detail.verifiedCount} / {detail.totalCount} items verified
-						</span>
-					</div>
-					<Progress
-						value={verificationPct}
-						color={
-							verificationPct === 100
-								? "success"
-								: verificationPct > 0
-									? "warning"
-									: "default"
-						}
-						size="sm"
-						className="w-full"
-					/>
-				</div>
+				<StatusBadge status={item.status} verified={item.isVerified} />
 			</div>
 
-			{/* APP Items table */}
-			<div className="flex flex-col gap-3">
-				<div className="flex items-center justify-between flex-wrap gap-2">
-					<div className="flex items-center gap-2">
-						<h2 className="text-lg font-semibold">Linked APP Items</h2>
-						<Chip size="sm" variant="flat">
-							{detail.appItems.length}
-						</Chip>
-					</div>
-					<Button color="primary" size="sm" onPress={openAdd}>
-						+ Add Item
-					</Button>
-				</div>
+			{/* ── Implementation item details ───────────────────────────────── */}
+			<Section title="Implementation Item Details">
+				<dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+					<Def label="SIP Program" value={item.sipProgram} />
+					<Def label="Category" value={item.expenditureType} />
+					<Def label="Date" value={item.date} />
+					<Def
+						label="Estimated Cost"
+						value={formatPeso(item.estimatedCost)}
+						mono
+					/>
+					<Def label="Quantity" value={item.quantity} />
+					<Def label="Account Title" value={item.accountTitle} />
+					<Def label="Account Code" value={item.accountCode} mono />
+					<Def label="Purpose" value={item.purpose} wide />
+					<Def label="Indicator" value={item.indicator} wide />
+					<Def label="Resources" value={item.resources} wide />
+				</dl>
+			</Section>
 
-				<Table aria-label="Linked APP items" removeWrapper>
-					<TableHeader>
-						<TableColumn className="w-8">#</TableColumn>
-						<TableColumn>Item Description</TableColumn>
-						<TableColumn>Specification</TableColumn>
-						<TableColumn className="w-20">UOM</TableColumn>
-						<TableColumn className="text-right w-14">Qty</TableColumn>
-						<TableColumn className="text-right w-28">Price</TableColumn>
-						<TableColumn className="text-right w-32">Total</TableColumn>
-						<TableColumn className="w-52">Photo / Status</TableColumn>
-						<TableColumn className="w-52">Implemented/Verified</TableColumn>
-					</TableHeader>
-					<TableBody
-						emptyContent={
-							<div className="py-8 text-default-400 text-center">
-								<p>No APP items linked yet.</p>
-								<p className="text-xs mt-1">
-									Use "+ Add Item" above, or seed fake items for testing.
-								</p>
-							</div>
+			{/* ── Budget utilisation ────────────────────────────────────────── */}
+			<Section title="Budget">
+				<div className="flex justify-between text-sm mb-2">
+					<span className="text-default-500">
+						List items total:{" "}
+						<span className="font-semibold text-default-800">
+							{formatPeso(totalListCost)}
+						</span>
+					</span>
+					<span
+						className={
+							overBudget ? "text-red-500 font-semibold" : "text-default-500"
 						}
 					>
-						{detail.appItems.map((item, idx) => (
-							<TableRow
-								key={item.id}
-								className={item.isPhotoVerified ? "bg-success-50/40" : ""}
-							>
-								<TableCell className="text-default-400 text-xs">
-									{idx + 1}
-								</TableCell>
-								<TableCell>
-									<span className="text-sm font-medium leading-snug">
-										{item.itemDescription ?? "—"}
-									</span>
-								</TableCell>
-								<TableCell>
-									<span className="text-xs text-default-500 leading-snug">
-										{item.specification ?? "—"}
-									</span>
-								</TableCell>
-								<TableCell>
-									<span className="text-xs">{item.unitOfMeasure ?? "—"}</span>
-								</TableCell>
-								<TableCell className="text-right text-sm">
-									{item.totalQuantity ?? "—"}
-								</TableCell>
-								<TableCell className="text-right font-medium">
-									{fmt(item.price)}
-								</TableCell>
-								<TableCell className="text-right font-bold">
-									{fmt(item.totalAmount)}
-								</TableCell>
-								<TableCell>
-									<PhotoCell
-										item={item}
-										token={token}
-										onRefresh={fetchDetail}
-										onViewPhoto={handleViewPhoto}
-									/>
-								</TableCell>
-								<TableCell className="text-right">
-									{item.isPhotoVerified ? (
-										<Chip
-											variant="flat"
-											color="success"
-											size="sm"
-											className="capitalize border-1 border-success-200"
-										>
-											Implemented
-										</Chip>
-									) : (
-										<Chip
-											variant="flat"
-											color="warning"
-											size="sm"
-											className="capitalize border-1 border-warning-200 text-warning-700"
-										>
-											Pending Verification
-										</Chip>
-									)}
-								</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
+						Remaining: {formatPeso(remainingBudget)}
+					</span>
+				</div>
+				<div className="h-2.5 rounded-full bg-default-100 overflow-hidden">
+					<div
+						className={`h-full rounded-full transition-all duration-500 ${overBudget ? "bg-red-400" : budgetPct >= 75 ? "bg-yellow-400" : "bg-green-400"}`}
+						style={{ width: `${budgetPct}%` }}
+					/>
+				</div>
+				<p className="text-xs text-default-400 mt-1">
+					{budgetPct.toFixed(1)}% of {formatPeso(item.estimatedCost)} budget
+					used
+				</p>
+			</Section>
 
-				{detail.appItems.length > 0 && (
-					<div className="flex justify-end mt-1">
-						<div className="flex items-center gap-6 bg-default-50 border border-default-200 rounded-xl px-5 py-3">
-							<span className="text-sm text-default-500">Total APP Cost</span>
-							<span className="text-xl font-bold text-primary">
-								{fmt(detail.totalAppCost)}
-							</span>
-							{costDelta != null && (
-								<>
-									<span className="text-sm text-default-400 border-l border-default-200 pl-6">
-										vs SIP Estimate
-									</span>
-									<span
-										className={`text-sm font-semibold ${costDelta > 0 ? "text-danger-500" : "text-success-600"}`}
+			{/* ── List items ────────────────────────────────────────────────── */}
+			<Section title={`List Items (${listItems.length})`}>
+				{listItems.length === 0 ? (
+					<p className="text-sm text-default-400 italic">No list items yet.</p>
+				) : (
+					<div className="overflow-x-auto rounded-lg border border-default-200">
+						<table className="w-full text-sm">
+							<thead>
+								<tr className="bg-default-50 border-b border-default-200 text-xs font-semibold text-default-500 uppercase tracking-wide">
+									<th className="px-3 py-2 text-left">Description</th>
+									<th className="px-3 py-2 text-right">Qty</th>
+									<th className="px-3 py-2 text-right">Unit Cost</th>
+									<th className="px-3 py-2 text-right">Total</th>
+								</tr>
+							</thead>
+							<tbody>
+								{listItems.map((li) => (
+									<tr
+										key={li.id}
+										className="border-b border-default-100 last:border-0"
 									>
-										{costDelta > 0 ? "+" : ""}
-										{fmt(costDelta)}
-									</span>
-								</>
-							)}
-						</div>
+										<td className="px-3 py-2">{li.description}</td>
+										<td className="px-3 py-2 text-right">{li.quantity}</td>
+										<td className="px-3 py-2 text-right font-mono">
+											{formatPeso(li.unitCost)}
+										</td>
+										<td className="px-3 py-2 text-right font-mono font-semibold">
+											{formatPeso(li.totalCost)}
+										</td>
+									</tr>
+								))}
+							</tbody>
+							<tfoot>
+								<tr className="bg-primary/5 font-bold">
+									<td
+										colSpan={3}
+										className="px-3 py-2 text-right text-sm text-default-700"
+									>
+										Total
+									</td>
+									<td className="px-3 py-2 text-right text-sm text-primary font-mono">
+										{formatPeso(totalListCost)}
+									</td>
+								</tr>
+							</tfoot>
+						</table>
 					</div>
 				)}
-			</div>
+			</Section>
 
-			{/* Add Item Modal */}
-			<AddItemModal
-				sipItemId={detail.sipItemId}
-				arCode={detail.arCode}
-				isOpen={addOpen}
-				onClose={closeAdd}
-				onAdded={fetchDetail}
-				token={token}
-			/>
+			{/* ── DEV TOOLS ─────────────────────────────────────────────────── */}
+			<Section title="⚙ Dev Tools" subtle>
+				<p className="text-xs text-default-400 mb-3">
+					Each click adds one randomly-generated list item within the remaining
+					budget.
+					{overBudget && (
+						<span className="text-red-500 font-medium ml-1">
+							Budget exhausted — seeding is disabled.
+						</span>
+					)}
+				</p>
 
-			{/* Image Viewer Modal */}
-			<ImageViewerModal
-				item={viewingItem}
-				isOpen={imgOpen}
-				onClose={closeImg}
-				token={token}
-				onVerified={fetchDetail}
-			/>
+				{seedError && (
+					<div className="mb-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2 flex gap-2">
+						<span>⚠</span>
+						<span>{seedError}</span>
+					</div>
+				)}
+
+				{overBudget && (
+					<div className="mb-3 bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg px-3 py-2">
+						Adding another item would exceed the estimated cost budget of{" "}
+						{formatPeso(item.estimatedCost)}.
+					</div>
+				)}
+
+				<button
+					onClick={handleSeed}
+					disabled={seeding || overBudget}
+					className={[
+						"px-4 py-2 rounded-lg text-sm font-medium border transition-all",
+						overBudget
+							? "border-default-200 text-default-300 cursor-not-allowed"
+							: seeding
+								? "border-primary/30 text-primary/50 cursor-wait"
+								: "border-primary text-primary hover:bg-primary hover:text-white",
+					].join(" ")}
+				>
+					{seeding
+						? "Adding…"
+						: `+ Seed List Item (${formatPeso(Math.max(remainingBudget, 0))} remaining)`}
+				</button>
+			</Section>
+		</div>
+	);
+}
+
+// ─── Small presentational helpers ─────────────────────────────────────────────
+
+function Section({
+	title,
+	children,
+	subtle = false,
+}: {
+	title: string;
+	children: React.ReactNode;
+	subtle?: boolean;
+}) {
+	return (
+		<div
+			className={`rounded-xl border p-5 flex flex-col gap-3 ${subtle ? "border-dashed border-default-200 bg-default-50/50" : "border-default-200"}`}
+		>
+			<h2
+				className={`text-sm font-semibold ${subtle ? "text-default-400" : "text-default-700"}`}
+			>
+				{title}
+			</h2>
+			{children}
+		</div>
+	);
+}
+
+function Def({
+	label,
+	value,
+	mono = false,
+	wide = false,
+}: {
+	label: string;
+	value?: string | null;
+	mono?: boolean;
+	wide?: boolean;
+}) {
+	return (
+		<div className={wide ? "col-span-2 sm:col-span-3" : ""}>
+			<dt className="text-xs text-default-400 mb-0.5">{label}</dt>
+			<dd className={`text-sm ${mono ? "font-mono" : ""} text-default-800`}>
+				{value || <span className="text-default-300 italic">—</span>}
+			</dd>
+		</div>
+	);
+}
+
+function StatusBadge({
+	status,
+	verified,
+}: {
+	status: number;
+	verified: boolean;
+}) {
+	if (verified)
+		return (
+			<span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+				Verified
+			</span>
+		);
+	if (status === 1)
+		return (
+			<span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-700">
+				Approved
+			</span>
+		);
+	return (
+		<span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-default-100 text-default-500">
+			Implemented
+		</span>
+	);
+}
+
+function ErrorState({ message }: { message: string }) {
+	return (
+		<div className="max-w-md mx-auto mt-20 text-center flex flex-col gap-4">
+			<p className="text-4xl">🔍</p>
+			<p className="text-default-500 text-sm">{message}</p>
+			<a href="/projects" className="text-sm text-primary hover:underline">
+				← Back to Projects
+			</a>
 		</div>
 	);
 }

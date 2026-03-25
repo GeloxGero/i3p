@@ -1,8 +1,14 @@
 ---
-import MainLayout from "../../layouts/MainLayout.astro"
-import ProjectTable from "../../components/ProjectTable"
+// src/pages/projects/index.astro
+// Entry point for the /projects route.
+// Astro handles SSR routing; the actual UI is a React island so all
+// interactivity (year/month selection, import, table) is client-side.
+import MainLayout from "../../layouts/MainLayout.astro";
+import ProjectsPage from "../../components/ProjectsPage";
 ---
 
-<MainLayout>
-    <ProjectTable client:load/>
+<MainLayout title="Projects">
+  <!-- client:load ensures the React tree hydrates immediately so the
+       year/month selectors are interactive without a second round-trip. -->
+  <ProjectsPage client:load />
 </MainLayout>

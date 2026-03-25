@@ -1,9 +1,13 @@
 ---
-// If it was ../../../ before, it's likely ../../ now
-import MainLayout from "../../layouts/MainLayout.astro"
-import ArDetailPage from "../../components/ArDetailPage"
+// src/pages/projects/detail.astro
+// Renders the AR detail page for a single ImplementationItem.
+// The arCode is passed via query-string: /projects/detail?ar=AR-2024-ABC123
+import MainLayout from "../../layouts/MainLayout.astro";
+import ArDetailPage from "../../components/ArDetailPage";
+
+const arCode = Astro.url.searchParams.get("ar") ?? "";
 ---
 
-<MainLayout title="Project Details">
-    <ArDetailPage client:load />
+<MainLayout title={`AR Detail — ${arCode}`}>
+  <ArDetailPage arCode={arCode} client:load />
 </MainLayout>
