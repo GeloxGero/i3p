@@ -20,43 +20,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { formatPeso } from "./TableViews/SchoolPlanTable/utils";
-
-// ─── API types ────────────────────────────────────────────────────────────────
-
-interface ArItem {
-	id: number;
-	arCode: string;
-	date: string;
-	kra: string;
-	sipProgram: string;
-	activity: string;
-	purpose: string | null;
-	indicator: string | null;
-	resources: string | null;
-	quantity: string | null;
-	estimatedCost: number;
-	accountTitle: string | null;
-	accountCode: string | null;
-	expenditureType: string;
-	isVerified: boolean;
-	status: number;
-}
-
-interface ListItem {
-	id: number;
-	description: string;
-	quantity: number;
-	unitCost: number;
-	totalCost: number;
-	createdAt: string;
-}
-
-interface ArDetailResponse {
-	item: ArItem;
-	listItems: ListItem[];
-	totalListCost: number;
-	remainingBudget: number;
-}
+import {devFuncSeedArItem} from "../devUtils/ArDetailDevUtils.ts";
+import {Def, Section, StatusBadge, ErrorState} from "./ArDetails/ArRenders.tsx"
+import type {ArDetailResponse} from "./ArDetails/ArTypes.ts"
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -66,8 +32,7 @@ interface Props {
 
 export default function ArDetailPage({ arCode }: Props) {
 	const [detail, setDetail] = useState<ArDetailResponse | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [seeding, setSeeding] = useState(false);
+	const [loading, setLoading] = useState(false);
 	const [seedError, setSeedError] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
@@ -92,34 +57,6 @@ export default function ArDetailPage({ arCode }: Props) {
 		loadDetail();
 	}, [loadDetail]);
 
-	// ── Seed one list item ────────────────────────────────────────────────────
-	//
-	// WHY A SEED BUTTON PER CLICK?
-	// ─────────────────────────────
-	// The dev tool is intentionally simple: every click adds exactly one item.
-	// This mirrors the way real list items would be added (one at a time) and
-	// makes it easy to verify budget enforcement without a complex form.
-	const handleSeed = async () => {
-		if (!detail || detail.remainingBudget <= 0) return;
-		setSeedError(null);
-		setSeeding(true);
-		try {
-			const res = await fetch(`/api/Ar/${encodeURIComponent(arCode)}/seed`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-			});
-			if (!res.ok) {
-				const msg = await res.text().catch(() => `HTTP ${res.status}`);
-				setSeedError(msg);
-				return;
-			}
-			await loadDetail(); // refresh to show new item
-		} catch (e) {
-			setSeedError(e instanceof Error ? e.message : "Seed failed.");
-		} finally {
-			setSeeding(false);
-		}
-	};
 
 	// ── Render ────────────────────────────────────────────────────────────────
 
@@ -302,106 +239,17 @@ export default function ArDetailPage({ arCode }: Props) {
 				)}
 
 				<button
-					onClick={handleSeed}
-					disabled={seeding || overBudget}
-					className={[
-						"px-4 py-2 rounded-lg text-sm font-medium border transition-all",
-						overBudget
-							? "border-default-200 text-default-300 cursor-not-allowed"
-							: seeding
-								? "border-primary/30 text-primary/50 cursor-wait"
-								: "border-primary text-primary hover:bg-primary hover:text-white",
-					].join(" ")}
+					onClick={async () => {
+						devFuncSeedArItem(detail, arCode);
+						await loadDetail();
+					}}
+					disabled={ overBudget}
+					className={
+						"px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+				}
 				>
-					{seeding
-						? "Adding…"
-						: `+ Seed List Item (${formatPeso(Math.max(remainingBudget, 0))} remaining)`}
 				</button>
 			</Section>
-		</div>
-	);
-}
-
-// ─── Small presentational helpers ─────────────────────────────────────────────
-
-function Section({
-	title,
-	children,
-	subtle = false,
-}: {
-	title: string;
-	children: React.ReactNode;
-	subtle?: boolean;
-}) {
-	return (
-		<div
-			className={`rounded-xl border p-5 flex flex-col gap-3 ${subtle ? "border-dashed border-default-200 bg-default-50/50" : "border-default-200"}`}
-		>
-			<h2
-				className={`text-sm font-semibold ${subtle ? "text-default-400" : "text-default-700"}`}
-			>
-				{title}
-			</h2>
-			{children}
-		</div>
-	);
-}
-
-function Def({
-	label,
-	value,
-	mono = false,
-	wide = false,
-}: {
-	label: string;
-	value?: string | null;
-	mono?: boolean;
-	wide?: boolean;
-}) {
-	return (
-		<div className={wide ? "col-span-2 sm:col-span-3" : ""}>
-			<dt className="text-xs text-default-400 mb-0.5">{label}</dt>
-			<dd className={`text-sm ${mono ? "font-mono" : ""} text-default-800`}>
-				{value || <span className="text-default-300 italic">—</span>}
-			</dd>
-		</div>
-	);
-}
-
-function StatusBadge({
-	status,
-	verified,
-}: {
-	status: number;
-	verified: boolean;
-}) {
-	if (verified)
-		return (
-			<span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-				Verified
-			</span>
-		);
-	if (status === 1)
-		return (
-			<span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-700">
-				Approved
-			</span>
-		);
-	return (
-		<span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-default-100 text-default-500">
-			Implemented
-		</span>
-	);
-}
-
-function ErrorState({ message }: { message: string }) {
-	return (
-		<div className="max-w-md mx-auto mt-20 text-center flex flex-col gap-4">
-			<p className="text-4xl">🔍</p>
-			<p className="text-default-500 text-sm">{message}</p>
-			<a href="/projects" className="text-sm text-primary hover:underline">
-				← Back to Projects
-			</a>
 		</div>
 	);
 }

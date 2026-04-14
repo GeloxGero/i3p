@@ -5,6 +5,7 @@
 
 import { MONTH_ORDER, monthIndex, type MonthName } from "./constants";
 
+
 // ─── Formatting ───────────────────────────────────────────────────────────────
 
 /**
@@ -117,3 +118,6 @@ export const allMatch = <T>(arr: T[], predicate: (x: T) => boolean): boolean =>
  */
 export const clamp = (value: number, min: number, max: number): number =>
 	Math.max(min, Math.min(max, value));
+
+
+// ─── SchoolPlanTable Helpers ──────────────────────────────────────────────────────────
