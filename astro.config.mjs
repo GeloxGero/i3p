@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { heroui } from "@heroui/react";
 
 export default defineConfig({
+	base: "./",
 	vite: {
 		plugins: [tailwindcss()],
 	},

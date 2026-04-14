@@ -48,6 +48,8 @@ import ImportModal from "./components/importModal";
 import DuplicateResolver from "./components/duplicateResolver";
 import AddItemModal from "./components/addItemModal";
 import SkeletonTable from "./components/skeletonTable";
+import { $token } from "../../../store/authStore";
+import { useStore } from "@nanostores/react";
 
 interface Props {
 	onToast?: (message: string, type?: "success" | "error") => void;
@@ -83,12 +85,14 @@ export default function SchoolPlanTable({ onToast }: Props) {
 	const [resolverOpen, setResolverOpen] = useState(false);
 	const [importing, setImporting] = useState(false);
 
+	const token = useStore($token);
+
 	// ── EFFECT: load plan list once ────────────────────────────────────────────
 	useEffect(() => {
 		let cancelled = false;
 		setPlansLoading(true);
 
-		fetchPlans()
+		fetchPlans(token)
 			.then((data) => {
 				if (cancelled) return;
 				setPlans(data);
@@ -115,7 +119,7 @@ export default function SchoolPlanTable({ onToast }: Props) {
 		setDetailLoading(true);
 		setPlanDetail(null);
 
-		fetchPlanDetail(selectedPlanId)
+		fetchPlanDetail(selectedPlanId, token)
 			.then((data) => {
 				if (cancelled) return;
 				setPlanDetail(data);
@@ -187,8 +191,8 @@ export default function SchoolPlanTable({ onToast }: Props) {
 	const handleDeleteItem = useCallback(
 		async (itemId: number) => {
 			if (!selectedPlanId) return;
-			await deleteItem(itemId);
-			const updated = await fetchPlanDetail(selectedPlanId);
+			await deleteItem(itemId, token);
+			const updated = await fetchPlanDetail(selectedPlanId, token);
 			setPlanDetail(updated);
 			onToast?.("Item removed.");
 		},
@@ -198,8 +202,8 @@ export default function SchoolPlanTable({ onToast }: Props) {
 	const handleSetBudget = useCallback(
 		async (value: number | null) => {
 			if (!selectedPlanId) return;
-			await setBudget(selectedPlanId, value);
-			const updated = await fetchPlanDetail(selectedPlanId);
+			await setBudget(selectedPlanId, value, token);
+			const updated = await fetchPlanDetail(selectedPlanId, token);
 			setPlanDetail(updated);
 			onToast?.(
 				value ? `Budget set to ₱${value.toLocaleString()}.` : "Budget cleared.",
@@ -210,20 +214,19 @@ export default function SchoolPlanTable({ onToast }: Props) {
 
 	const handleRecalculate = useCallback(async () => {
 		if (!selectedPlanId) return;
-		await recalculate(selectedPlanId);
-		const updated = await fetchPlanDetail(selectedPlanId);
+		await recalculate(selectedPlanId, token);
+		const updated = await fetchPlanDetail(selectedPlanId, token);
 		setPlanDetail(updated);
 		onToast?.("Total recalculated.");
 	}, [selectedPlanId, onToast]);
 
-	/** IMPORT STEP 1 — candidates arrive from ImportModal (file parsed client-side) */
 	const handleCandidatesReady = useCallback(
 		async (year: number, candidates: CandidateItemDto[]) => {
 			setImportModalOpen(false);
 			setPendingYear(year);
 
 			try {
-				const result = await checkDuplicates(year, candidates);
+				const result = await checkDuplicates(year, candidates, token);
 
 				if (result.hasDuplicates) {
 					const dupKeys = new Set(
@@ -267,12 +270,15 @@ export default function SchoolPlanTable({ onToast }: Props) {
 	) => {
 		setImporting(true);
 		try {
-			const result = await resolveDuplicates({
-				year,
-				resolutions,
-				nonDuplicates: clean,
-			});
-			const updatedPlans = await fetchPlans();
+			const result = await resolveDuplicates(
+				{
+					year,
+					resolutions,
+					nonDuplicates: clean,
+				},
+				token,
+			);
+			const updatedPlans = await fetchPlans(token);
 			setPlans(updatedPlans);
 			const match = updatedPlans.find((p) => p.year === year);
 			if (match) setSelectedPlanId(match.id);
@@ -422,7 +428,7 @@ export default function SchoolPlanTable({ onToast }: Props) {
 					onClose={() => setAddModalOpen(false)}
 					onItemAdded={async () => {
 						setAddModalOpen(false);
-						const updated = await fetchPlanDetail(selectedPlanId);
+						const updated = await fetchPlanDetail(selectedPlanId, token);
 						setPlanDetail(updated);
 						onToast?.("Item added successfully.");
 					}}

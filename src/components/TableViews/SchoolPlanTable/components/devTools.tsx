@@ -1,7 +1,7 @@
-import type { SchoolPlanItem } from "../types";
+import type { SchoolPlanItemDto } from "../types";
 import { useState } from "react";
 import { Button } from "@heroui/react";
-import { SchoolPlanApi } from "../api";
+import { seedFakeLinks } from "../api";
 
 function SeedFakeBanner({
 	planId,
@@ -10,7 +10,7 @@ function SeedFakeBanner({
 	onDone,
 }: {
 	planId: string;
-	items: SchoolPlanItem[];
+	items: SchoolPlanItemDto[];
 	token: string | null;
 	onDone: () => void;
 }) {
@@ -25,7 +25,7 @@ function SeedFakeBanner({
 			// items[0].id.toString() ensures the type matches your service
 
 			//DANGEROUS CODE. MUST REFACTOR
-			await SchoolPlanApi.seedFakeLinks(items[0].id!.toString(), token);
+			await seedFakeLinks(items[0].id!.toString(), token);
 
 			onDone();
 		} catch (error) {

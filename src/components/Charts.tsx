@@ -575,7 +575,7 @@ function SetBudgetModal({
 		setSaving(true);
 		try {
 			const updatedPlan = await apiRequest(
-				`/api/SchoolImplementation/${plan.id}/budget`,
+				`api/SchoolImplementation/${plan.id}/budget`,
 				{
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },

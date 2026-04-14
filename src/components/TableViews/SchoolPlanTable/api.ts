@@ -12,39 +12,23 @@ import type {
 	ResolveDuplicatesRequest,
 } from "./types";
 
-const BASE = "/api/SchoolImplementation";
+import { apiRequest } from "../../../api/TokenService";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Thin wrapper around fetch that:
- *  1. Attaches `Content-Type: application/json` on mutating requests.
- *  2. Throws a descriptive Error when the server returns a non-2xx status so
- *     callers can rely on try/catch instead of checking `res.ok` everywhere.
- */
-async function http<T>(url: string, init?: RequestInit): Promise<T> {
-	const res = await fetch(url, {
-		headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-		...init,
-	});
-	if (!res.ok) {
-		const text = await res.text().catch(() => res.statusText);
-		throw new Error(text || `HTTP ${res.status}`);
-	}
-	return res.json() as Promise<T>;
-}
+const BASE = "api/SchoolImplementation";
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 /** Returns every yearly plan as a lightweight header (no items). */
-export const fetchPlans = (): Promise<SchoolImplementationHeaderDto[]> =>
-	http<SchoolImplementationHeaderDto[]>(BASE);
+export const fetchPlans = (
+	token: string | null,
+): Promise<SchoolImplementationHeaderDto[]> =>
+	apiRequest(`${BASE}`, { method: "GET" }, token);
 
-/** Returns one plan with all its items grouped by month. */
 export const fetchPlanDetail = (
 	id: number,
+	token: string | null,
 ): Promise<SchoolImplementationDetailDto> =>
-	http<SchoolImplementationDetailDto>(`${BASE}/${id}`);
+	apiRequest(`${BASE}/${id}`, { method: "GET" }, token);
 
 // ─── Import flow ──────────────────────────────────────────────────────────────
 
@@ -58,11 +42,17 @@ export const fetchPlanDetail = (
 export const checkDuplicates = (
 	year: number,
 	candidates: CandidateItemDto[],
+	token: string | null,
 ): Promise<CheckDuplicatesResponse> =>
-	http<CheckDuplicatesResponse>(`${BASE}/check-duplicates`, {
-		method: "POST",
-		body: JSON.stringify({ year, candidates }),
-	});
+	apiRequest(
+		`${BASE}/check-duplicates`,
+		{
+			method: "POST",
+			body: JSON.stringify({ year, candidates }),
+			headers: { "Content-Type": "application/json" },
+		},
+		token,
+	);
 
 /**
  * STEP 2 — commit with user-chosen resolutions.
@@ -72,18 +62,17 @@ export const checkDuplicates = (
  */
 export const resolveDuplicates = (
 	payload: ResolveDuplicatesRequest,
-): Promise<{
-	message: string;
-	year: number;
-	merged: number;
-	kept: number;
-	deleted: number;
-	directInserted: number;
-}> =>
-	http(`${BASE}/resolve-duplicates`, {
-		method: "POST",
-		body: JSON.stringify(payload),
-	});
+	token: string | null,
+) =>
+	apiRequest(
+		`${BASE}/resolve-duplicates`,
+		{
+			method: "POST",
+			body: JSON.stringify(payload),
+			headers: { "Content-Type": "application/json" },
+		},
+		token,
+	);
 
 /**
  * Upload a raw Excel file for parsing.
@@ -100,31 +89,74 @@ export const resolveDuplicates = (
 export const importExcel = (
 	file: File,
 	year: number,
+	token: string | null,
 ): Promise<{ candidates: CandidateItemDto[] }> => {
 	const form = new FormData();
 	form.append("file", file);
 	form.append("year", String(year));
-	return fetch(`${BASE}/import-preview`, {
-		method: "POST",
-		body: form,
-	}).then(async (res) => {
-		if (!res.ok) throw new Error(await res.text().catch(() => res.statusText));
-		return res.json();
-	});
+
+	// Note: Do NOT set Content-Type header for FormData; the browser needs to
+	// set the boundary automatically.
+	return apiRequest(
+		`${BASE}/import-preview`,
+		{
+			method: "POST",
+			body: form,
+		},
+		token,
+	);
 };
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
-export const setBudget = (id: number, annualBudget: number | null) =>
-	http<{ annualBudget: number | null }>(`${BASE}/${id}/budget`, {
-		method: "PUT",
-		body: JSON.stringify({ annualBudget }),
-	});
+export const setBudget = (
+	id: number,
+	annualBudget: number | null,
+	token: string | null,
+): Promise<{ annualBudget: number | null }> =>
+	apiRequest(
+		`${BASE}/${id}/budget`,
+		{
+			method: "PUT",
+			body: JSON.stringify({ annualBudget }),
+			headers: { "Content-Type": "application/json" },
+		},
+		token,
+	);
 
-export const deleteItem = (itemId: number) =>
-	http<{ message: string }>(`${BASE}/item/${itemId}`, { method: "DELETE" });
+export const deleteItem = (
+	itemId: number,
+	token: string | null,
+): Promise<{ message: string }> =>
+	apiRequest(
+		`${BASE}/item/${itemId}`,
+		{
+			method: "DELETE",
+		},
+		token,
+	);
 
-export const recalculate = (planId: number) =>
-	http<{ newTotal: number }>(`${BASE}/recalculate/${planId}`, {
-		method: "POST",
-	});
+export const recalculate = (
+	planId: number,
+	token: string | null,
+): Promise<{ newTotal: number }> =>
+	apiRequest(
+		`${BASE}/recalculate/${planId}`,
+		{
+			method: "POST",
+		},
+		token,
+	);
+
+//Remove in Prod
+export const seedFakeLinks = (
+	itemId: string,
+	token: string | null,
+): Promise<{ message: string }> =>
+	apiRequest(
+		`${BASE}/seed-fake-links/${itemId}`,
+		{
+			method: "POST",
+		},
+		token,
+	);

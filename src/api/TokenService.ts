@@ -14,7 +14,8 @@ export async function apiRequest(
 		headers.set("Authorization", `Bearer ${token}`);
 	}
 
-	const response = await fetch(`${baseUrl}${endpoint}`, {
+	//no base url as an attempt for dynamic urls
+	const response = await fetch(`${endpoint}`, {
 		...options,
 		headers,
 	});
